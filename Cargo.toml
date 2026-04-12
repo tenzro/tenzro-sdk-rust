@@ -1,0 +1,66 @@
+[package]
+name = "tenzro-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Tenzro Network SDK — wallets, identity, agents, inference, bridge, crypto, TEE, ZK proofs, custody, and settlement"
+license = "Apache-2.0"
+repository = "https://github.com/tenzro/tenzro-sdk-rust"
+homepage = "https://tenzro.com"
+documentation = "https://tenzro.com/docs/rust-sdk"
+readme = "README.md"
+keywords = ["blockchain", "ai", "agents", "mcp", "web3"]
+categories = ["api-bindings", "cryptography", "web-programming"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+thiserror = "2"
+futures = "0.3"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tracing-subscriber = "0.3"
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
+
+[[example]]
+name = "wallet_operations"
+path = "examples/wallet_operations.rs"
+
+[[example]]
+name = "ai_inference"
+path = "examples/ai_inference.rs"
+
+[[example]]
+name = "settlement"
+path = "examples/settlement.rs"
+
+[[example]]
+name = "agents"
+path = "examples/agents.rs"
+
+[[example]]
+name = "governance"
+path = "examples/governance.rs"
+
+[[example]]
+name = "complete_example"
+path = "examples/complete_example.rs"
+
+[[example]]
+name = "task_marketplace"
+path = "examples/task_marketplace.rs"
+
+[[example]]
+name = "agent_marketplace"
+path = "examples/agent_marketplace.rs"
+
+[[example]]
+name = "app_developer"
+path = "examples/app_developer.rs"
