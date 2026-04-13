@@ -69,6 +69,7 @@ pub mod agent;
 pub mod agent_payments;
 pub mod ap2;
 pub mod app;
+pub mod auth;
 pub mod bridge;
 pub mod canton;
 pub mod circuit_breaker;
@@ -120,6 +121,7 @@ pub use app::{
 };
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;
+pub use auth::{AuthClient, OnboardingKey, RevokeKeyResponse, ValidateKeyResponse};
 pub use ap2::Ap2Client;
 pub use bridge::BridgeClient;
 pub use canton::CantonClient;

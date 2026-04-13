@@ -43,10 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Modules (36)
+## Modules (37)
 
 | Module | Description |
 |--------|-------------|
+| `auth` | Issue, list, revoke, and validate onboarding keys |
 | `wallet` | Create wallets, check balances, send transactions |
 | `identity` | TDIP DIDs, credentials, usernames, delegation |
 | `agent` | Register agents, spawn, swarms, messaging |
@@ -83,6 +84,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `config` | SDK configuration |
 | `rpc` | JSON-RPC client |
 | `error` | Error types |
+
+## Auth (Onboarding Keys)
+
+```rust
+use tenzro_sdk::{TenzroClient, identity::IdentityType};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+    let auth = client.auth();
+
+    // Issue an onboarding key
+    let key = auth.issue_onboarding_key(
+        "Alice",
+        "did:tenzro:human:abc123",
+        "0x1234abcd",
+        IdentityType::Human,
+    ).await?;
+    println!("Key: {}", key.key);
+    println!("Expires: {}", key.expires_at);
+
+    // List all active keys
+    let keys = auth.list_onboarding_keys().await?;
+    for k in &keys {
+        println!("{} — {} ({})", k.name, k.did, k.status);
+    }
+
+    // Validate a key
+    let result = auth.validate_onboarding_key(&key.key).await?;
+    if result.valid {
+        println!("Valid for DID: {}", result.did.unwrap_or_default());
+    }
+
+    // Revoke a key
+    let revoke = auth.revoke_onboarding_key("did:tenzro:human:abc123").await?;
+    println!("Revoked: {}", revoke.revoked);
+
+    Ok(())
+}
+```
 
 ## AppClient (Developer Pattern)
 

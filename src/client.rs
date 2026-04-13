@@ -8,6 +8,7 @@ use crate::rpc::RpcClient;
 use crate::types::Address;
 use crate::{
     agent::AgentClient, agent_payments::AgentPaymentClient, ap2::Ap2Client,
+    auth::AuthClient,
     bridge::BridgeClient, canton::CantonClient, circuit_breaker::CircuitBreakerClient,
     compliance::ComplianceClient, contract::ContractClient, crypto::CryptoClient,
     custody::CustodyClient, debridge::DebridgeClient, erc7802::Erc7802Client,
@@ -401,6 +402,11 @@ impl TenzroClient {
     /// Creates a streaming client for real-time inference and event streaming
     pub fn streaming(&self) -> StreamingClient {
         StreamingClient::new(self.rpc.clone())
+    }
+
+    /// Creates an auth client for onboarding key management
+    pub fn auth(&self) -> AuthClient {
+        AuthClient::new(self.rpc.clone())
     }
 
     /// Returns the SDK configuration
