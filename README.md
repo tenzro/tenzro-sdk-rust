@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `governance` | Proposals, voting, delegation |
 | `staking` | Stake, unstake, rewards |
 | `compliance` | ERC-3643, KYC enforcement, freeze/unfreeze |
-| `crypto` | Sign, verify, encrypt, decrypt, hash, key exchange |
+| `crypto` | Sign, verify, encrypt, decrypt, hash, key exchange, VRF (RFC 9381 ECVRF-EDWARDS25519-SHA512-TAI) |
 | `tee` | TEE attestation, seal/unseal, confidential compute |
 | `zk` | ZK proof generation, verification, circuits |
 | `custody` | MPC wallets, keystores, sessions, spending limits |
