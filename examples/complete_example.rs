@@ -8,7 +8,8 @@
 //! - AI agent interactions
 //! - Governance participation
 
-use tenzro_sdk::{TenzroClient, Address, config::SdkConfig};
+use tenzro_sdk::{TenzroClient, config::SdkConfig};
+use tenzro_types::Address;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
