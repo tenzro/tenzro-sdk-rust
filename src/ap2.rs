@@ -272,6 +272,52 @@ impl Ap2Client {
             )
             .await
     }
+
+    // ─── AP2 Mandate Verification (Google AP2 spec) ──────────────────────
+
+    /// Verifies a single AP2 mandate (Verifiable Digital Credential)
+    ///
+    /// Checks the VDC proof, issuer, and schema for Intent, Cart, or Payment
+    /// mandates per Google's AP2 specification.
+    ///
+    /// # Arguments
+    ///
+    /// * `vdc` - The full JSON-LD VC envelope with proof
+    pub async fn verify_mandate(&self, vdc: serde_json::Value) -> SdkResult<Ap2MandateVerification> {
+        self.rpc
+            .call(
+                "tenzro_ap2VerifyMandate",
+                serde_json::json!([{ "vdc": vdc }]),
+            )
+            .await
+    }
+
+    /// Validates an AP2 Intent+Cart mandate pair for consistency
+    ///
+    /// Ensures the cart references the intent, amounts/items match the intent's
+    /// constraints, and both VDCs verify.
+    pub async fn validate_mandate_pair(
+        &self,
+        intent_vdc: serde_json::Value,
+        cart_vdc: serde_json::Value,
+    ) -> SdkResult<Ap2MandatePairValidation> {
+        self.rpc
+            .call(
+                "tenzro_ap2ValidateMandatePair",
+                serde_json::json!([{
+                    "intent_vdc": intent_vdc,
+                    "cart_vdc": cart_vdc,
+                }]),
+            )
+            .await
+    }
+
+    /// Returns AP2 protocol metadata (version, supported mandate types, VC formats)
+    pub async fn protocol_info(&self) -> SdkResult<Ap2ProtocolInfo> {
+        self.rpc
+            .call("tenzro_ap2ProtocolInfo", serde_json::json!([]))
+            .await
+    }
 }
 
 /// An AP2 payment session between an agent and provider
@@ -335,4 +381,61 @@ pub struct CancelResult {
     /// Amount refunded to the agent
     #[serde(default)]
     pub refunded: u64,
+}
+
+/// Result of verifying a single AP2 mandate (Intent / Cart / Payment VDC).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ap2MandateVerification {
+    /// Whether the VDC proof is valid
+    #[serde(default)]
+    pub valid: bool,
+    /// Mandate type: "Intent" | "Cart" | "Payment"
+    #[serde(default)]
+    pub mandate_type: String,
+    /// Issuer DID
+    #[serde(default)]
+    pub issuer: String,
+    /// Subject DID (agent/merchant)
+    #[serde(default)]
+    pub subject: String,
+    /// Expiration timestamp (Unix seconds)
+    #[serde(default)]
+    pub expires_at: u64,
+    /// Reason for failure if `valid` is false
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// Result of validating an Intent+Cart mandate pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ap2MandatePairValidation {
+    /// Whether the pair is mutually consistent and both VDCs verify
+    #[serde(default)]
+    pub valid: bool,
+    /// Verification result for the intent mandate
+    #[serde(default)]
+    pub intent: Option<Ap2MandateVerification>,
+    /// Verification result for the cart mandate
+    #[serde(default)]
+    pub cart: Option<Ap2MandateVerification>,
+    /// Reason for failure if `valid` is false
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
+/// AP2 protocol metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ap2ProtocolInfo {
+    /// AP2 protocol version
+    #[serde(default)]
+    pub version: String,
+    /// Supported mandate types (e.g. ["Intent", "Cart", "Payment"])
+    #[serde(default)]
+    pub supported_mandate_types: Vec<String>,
+    /// Supported VC formats (e.g. ["jwt_vc", "ldp_vc"])
+    #[serde(default)]
+    pub supported_vc_formats: Vec<String>,
+    /// Recognized issuer DID methods (e.g. ["did:tenzro", "did:web"])
+    #[serde(default)]
+    pub supported_did_methods: Vec<String>,
 }

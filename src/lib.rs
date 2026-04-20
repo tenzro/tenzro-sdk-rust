@@ -72,6 +72,7 @@ pub mod app;
 pub mod auth;
 pub mod bridge;
 pub mod canton;
+pub mod cct;
 pub mod circuit_breaker;
 pub mod client;
 pub mod compliance;
@@ -81,6 +82,7 @@ pub mod crypto;
 pub mod custody;
 pub mod debridge;
 pub mod erc7802;
+pub mod erc8004;
 pub mod error;
 pub mod events;
 pub mod governance;
@@ -102,6 +104,7 @@ pub mod token;
 pub mod tool;
 pub mod types;
 pub mod wallet;
+pub mod wormhole;
 pub mod zk;
 
 // Re-export main types for convenience
@@ -122,9 +125,12 @@ pub use app::{
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;
 pub use auth::{AuthClient, OnboardingKey, RevokeKeyResponse, ValidateKeyResponse};
-pub use ap2::Ap2Client;
+pub use ap2::{
+    Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
+};
 pub use bridge::BridgeClient;
 pub use canton::CantonClient;
+pub use cct::{CctClient, CctPool, CctPoolList};
 pub use circuit_breaker::CircuitBreakerClient;
 pub use compliance::{ComplianceClient, ComplianceResult, ComplianceRules, FreezeResult};
 pub use contract::{CallResult, ContractClient, DeployResult};
@@ -141,6 +147,7 @@ pub use debridge::{
     DebridgeTxData,
 };
 pub use erc7802::Erc7802Client;
+pub use erc8004::{Erc8004Agent, Erc8004AgentId, Erc8004Calldata, Erc8004Client};
 pub use events::{Event, EventClient, Subscription, WebhookRegistration};
 pub use governance::{GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower};
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};
@@ -169,4 +176,5 @@ pub use token::{
 };
 pub use tool::ToolClient;
 pub use wallet::{AssetBalance, WalletBalance, WalletClient};
+pub use wormhole::{WormholeChainId, WormholeClient, WormholeTransferResult, WormholeVaaId};
 pub use zk::{CircuitInfo, ProvingKey, ZkClient, ZkProof, ZkVerifyResult};

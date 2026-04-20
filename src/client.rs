@@ -359,6 +359,24 @@ impl TenzroClient {
         Erc7802Client::new(self.rpc.clone())
     }
 
+    /// Creates an ERC-8004 client for the trustless agents registry
+    /// (identity, reputation, validation) on any EVM chain
+    pub fn erc8004(&self) -> crate::erc8004::Erc8004Client {
+        crate::erc8004::Erc8004Client::new(self.rpc.clone())
+    }
+
+    /// Creates a Wormhole client for cross-chain token transfers and
+    /// VAA helpers via the node's Wormhole BridgeRouter adapter
+    pub fn wormhole(&self) -> crate::wormhole::WormholeClient {
+        crate::wormhole::WormholeClient::new(self.rpc.clone())
+    }
+
+    /// Creates a CCT (Chainlink Cross-Chain Token) client for inspecting
+    /// the canonical TNZO CCT pool registry
+    pub fn cct(&self) -> crate::cct::CctClient {
+        crate::cct::CctClient::new(self.rpc.clone())
+    }
+
     /// Creates an NFT client for collection and token management
     pub fn nft(&self) -> NftClient {
         NftClient::new(self.rpc.clone())
