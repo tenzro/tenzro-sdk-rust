@@ -5,8 +5,7 @@
 //! - Getting wallet balances
 //! - Sending tokens
 
-use tenzro_sdk::{TenzroClient, config::SdkConfig};
-use tenzro_types::Address;
+use tenzro_sdk::{Address, TenzroClient, config::SdkConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

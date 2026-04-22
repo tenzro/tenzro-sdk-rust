@@ -1,3 +1,8 @@
+# Empty [workspace] isolates this SDK from the parent monorepo workspace
+# so `cargo test` / `cargo build` work when the SDK is opened standalone
+# or synced to its own git repo.
+[workspace]
+
 [package]
 name = "tenzro-sdk"
 version = "0.1.0"

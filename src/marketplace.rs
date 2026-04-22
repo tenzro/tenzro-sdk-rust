@@ -4,7 +4,7 @@
 
 use crate::error::{SdkError, SdkResult};
 use crate::rpc::RpcClient;
-use crate::types::{Address, AgentTemplate};
+use crate::types::AgentTemplate;
 use std::sync::Arc;
 
 /// Marketplace client for agent template marketplace operations
@@ -72,7 +72,22 @@ impl MarketplaceClient {
         })
     }
 
-    /// Registers a new agent template on the marketplace
+    /// Registers a new agent template on the marketplace.
+    ///
+    /// Paid-agent marketplace semantics:
+    /// * `creator_did` — optional DID binding (e.g. `did:tenzro:human:...`) for
+    ///   creator attribution. Bound at registration time and immutable.
+    /// * `creator_wallet` — hex-encoded (0x-prefixed) payout wallet. **Mandatory**
+    ///   for any non-free pricing; all creator payouts are routed here.
+    /// * `pricing` — compact string form accepted by the `tenzro_registerAgentTemplate`
+    ///   RPC: `"free"`, `"per_execution:<u128>"`, `"per_token:<u128>"`,
+    ///   `"subscription:<u128>"`, or `"revenue_share:<bps>"`. A canonical JSON
+    ///   `AgentPricingModel` object is also accepted by passing a JSON string
+    ///   (e.g. `serde_json::to_string(&model)?`).
+    ///
+    /// On successful invocation via `run_agent_template`, the `AGENT_MARKETPLACE_COMMISSION_BPS`
+    /// (5%) network commission flows to the treasury and the remainder is paid
+    /// to `creator_wallet`.
     pub async fn register_agent_template(
         &self,
         name: &str,
@@ -80,28 +95,71 @@ impl MarketplaceClient {
         template_type: &str,
         system_prompt: &str,
         tags: Vec<String>,
-        pricing: serde_json::Value,
+        creator_did: Option<&str>,
+        creator_wallet: Option<&str>,
+        pricing: &str,
     ) -> SdkResult<AgentTemplate> {
-        let creator_hex = format!("0x{}", hex::encode(Address::zero().as_bytes()));
+        let mut params = serde_json::Map::new();
+        params.insert("name".into(), serde_json::json!(name));
+        params.insert("description".into(), serde_json::json!(description));
+        params.insert("template_type".into(), serde_json::json!(template_type));
+        params.insert("system_prompt".into(), serde_json::json!(system_prompt));
+        params.insert("tags".into(), serde_json::json!(tags));
+        params.insert("pricing".into(), serde_json::json!(pricing));
+        if let Some(did) = creator_did {
+            params.insert("creator_did".into(), serde_json::json!(did));
+        }
+        if let Some(wallet) = creator_wallet {
+            params.insert("creator_wallet".into(), serde_json::json!(wallet));
+        }
+
         let value: serde_json::Value = self
             .rpc
             .call(
                 "tenzro_registerAgentTemplate",
-                serde_json::json!({
-                    "name": name,
-                    "description": description,
-                    "template_type": template_type,
-                    "system_prompt": system_prompt,
-                    "creator": creator_hex,
-                    "tags": tags,
-                    "pricing": pricing,
-                }),
+                serde_json::Value::Object(params),
             )
             .await?;
 
         serde_json::from_value(value).map_err(|e| {
             SdkError::RpcError(format!("Failed to parse AgentTemplate: {}", e))
         })
+    }
+
+    /// Invokes (runs) a spawned agent template end-to-end.
+    ///
+    /// For paid templates the `payer_wallet` is charged per invocation:
+    /// * `AGENT_MARKETPLACE_COMMISSION_BPS` (5%) flows to the network treasury
+    /// * the remainder is paid to the template's `creator_wallet`
+    ///
+    /// Returns the raw report JSON from `tenzro_runAgentTemplate`, which
+    /// includes: `template_id`, `steps_executed`, `steps_failed`,
+    /// `steps_skipped_by_dry_run`, `fee_paid`, `commission_bps`,
+    /// `network_commission`, `creator_share`, `payer_wallet`,
+    /// `creator_wallet`, `treasury`, `invocation_count`, `total_revenue`.
+    pub async fn run_agent_template(
+        &self,
+        agent_id: &str,
+        payer_wallet: Option<&str>,
+        tokens_estimate: u64,
+        max_iterations: u64,
+        dry_run: bool,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::Map::new();
+        params.insert("agent_id".into(), serde_json::json!(agent_id));
+        params.insert("tokens_estimate".into(), serde_json::json!(tokens_estimate));
+        params.insert("max_iterations".into(), serde_json::json!(max_iterations));
+        params.insert("dry_run".into(), serde_json::json!(dry_run));
+        if let Some(wallet) = payer_wallet {
+            params.insert("payer_wallet".into(), serde_json::json!(wallet));
+        }
+
+        self.rpc
+            .call(
+                "tenzro_runAgentTemplate",
+                serde_json::Value::Object(params),
+            )
+            .await
     }
 
     /// Spawns a new agent instance from a marketplace template

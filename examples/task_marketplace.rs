@@ -33,7 +33,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("     ID: {}", t.task_id);
         println!("     Type: {:?}", t.task_type);
         println!("     Max price: {} TNZO (wei)", t.max_price);
-        println!("     Priority: {:?}", t.priority);
         println!("     Status: {:?}", t.status);
         println!();
     }

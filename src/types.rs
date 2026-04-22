@@ -224,6 +224,19 @@ pub struct AgentTemplate {
     /// Documentation URL
     #[serde(default)]
     pub docs_url: Option<String>,
+    /// Optional creator DID (did:tenzro:... / did:pdis:...) bound at registration time
+    #[serde(default)]
+    pub creator_did: Option<String>,
+    /// Creator payout wallet — mandatory for any non-free pricing, receives the
+    /// per-invocation fee minus the `AGENT_MARKETPLACE_COMMISSION_BPS` network commission
+    #[serde(default)]
+    pub creator_wallet: Option<String>,
+    /// Total successful invocations through `tenzro_runAgentTemplate`
+    #[serde(default)]
+    pub invocation_count: u64,
+    /// Total TNZO revenue collected across all invocations (pre-split)
+    #[serde(default)]
+    pub total_revenue: u128,
 }
 
 // ---------------------------------------------------------------------------

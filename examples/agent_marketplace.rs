@@ -73,7 +73,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "programming".to_string(),
             "security".to_string(),
         ],
-        serde_json::json!({ "type": "free" }),
+        None,   // creator_did: not attributing to a DID for this free example
+        None,   // creator_wallet: not required for free pricing
+        "free", // pricing: free tier — no commission, no fee collection
     ).await?;
 
     println!("   Template registered!");
@@ -104,10 +106,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "autonomous".to_string(),
             "finance".to_string(),
         ],
-        serde_json::json!({
-            "type": "per_execution",
-            "price": "5000000000000000000"  // 5 TNZO per execution
-        }),
+        Some("did:tenzro:human:demo-creator"), // creator_did: bind to publisher DID
+        // creator_wallet: MANDATORY for non-free pricing — receives 95% of each
+        // invocation fee. The 5% AGENT_MARKETPLACE_COMMISSION_BPS flows to treasury.
+        Some("0x0000000000000000000000000000000000000001"),
+        "per_execution:5000000000000000000", // 5 TNZO per execution
     ).await?;
 
     println!("   Template registered!");
@@ -134,10 +137,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "multi-agent".to_string(),
             "workflows".to_string(),
         ],
-        serde_json::json!({
-            "type": "subscription",
-            "monthly_rate": "50000000000000000000"  // 50 TNZO per month
-        }),
+        Some("did:tenzro:human:demo-creator"),
+        Some("0x0000000000000000000000000000000000000001"),
+        "subscription:50000000000000000000", // 50 TNZO per month
     ).await?;
 
     println!("   Template registered!");
@@ -165,10 +167,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "multi-modal".to_string(),
             "data-extraction".to_string(),
         ],
-        serde_json::json!({
-            "type": "per_token",
-            "price_per_token": "1000000000000"  // 0.000001 TNZO per token
-        }),
+        Some("did:tenzro:human:demo-creator"),
+        Some("0x0000000000000000000000000000000000000001"),
+        "per_token:1000000000000", // 0.000001 TNZO per token
     ).await?;
 
     println!("   Template registered!");
