@@ -101,7 +101,24 @@ impl SettlementClient {
             .await
     }
 
-    /// Creates an escrow for conditional payment
+    /// Creates an on-chain escrow via a signed `CreateEscrow` transaction.
+    ///
+    /// The escrow_id is derived deterministically by the VM as
+    /// `SHA-256("tenzro/escrow/id/v1" || payer || nonce_le)` and the funds are
+    /// transferred to a vault address derived from that escrow_id. Only the
+    /// signing payer can later release or refund.
+    ///
+    /// **Auth model.** This method calls `tenzro_signAndSendTransaction`
+    /// without a private key in the payload. The node resolves the
+    /// signing wallet from the bearer JWT (DPoP-bound, RFC 9449) carried
+    /// on the request via the ambient `Authorization: DPoP <jwt>` +
+    /// `DPoP: <proof>` headers. Make sure `TENZRO_BEARER_JWT` and
+    /// `TENZRO_DPOP_PROOF` are set in the environment before calling —
+    /// see [`crate::auth::AuthClient`] for how to mint them.
+    ///
+    /// Returns the transaction hash; the resulting escrow_id can be
+    /// inspected via [`Self::get_escrow`] once the transaction finalizes
+    /// (the VM emits the derived id in the receipt log).
     ///
     /// # Example
     ///
@@ -109,72 +126,210 @@ impl SettlementClient {
     /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
+    /// # let client = TenzroClient::connect(SdkConfig::testnet()).await?;
     /// let settlement = client.settlement();
-    ///
-    /// let escrow_id = settlement.create_escrow(
+    /// let tx_hash = settlement.create_escrow(
+    ///     "0xpayer...",
     ///     "0xpayee...",
-    ///     1000000,
+    ///     1_000_000_000_000_000_000u128, // 1 TNZO in wei
     ///     "TNZO",
+    ///     1_800_000_000_000u64,          // expires_at (unix ms)
     ///     "both_signatures",
     /// ).await?;
-    /// println!("Escrow created: {}", escrow_id);
-    /// # Ok(())
-    /// # }
+    /// println!("Escrow create tx: {}", tx_hash);
+    /// # Ok(()) }
     /// ```
     pub async fn create_escrow(
         &self,
+        payer: &str,
         payee: &str,
-        amount: u64,
+        amount: u128,
         asset: &str,
-        conditions: &str,
+        expires_at: u64,
+        release_conditions: &str,
     ) -> SdkResult<String> {
+        let release_conditions_json = match release_conditions.to_lowercase().as_str() {
+            "timeout" => serde_json::json!({ "type": "Timeout" }),
+            "provider_signature" | "provider" => serde_json::json!({ "type": "ProviderSignature" }),
+            "consumer_signature" | "consumer" => serde_json::json!({ "type": "ConsumerSignature" }),
+            "both_signatures" | "both" => serde_json::json!({ "type": "BothSignatures" }),
+            "verifier_signature" | "verifier" => serde_json::json!({ "type": "VerifierSignature" }),
+            "custom" => serde_json::json!({ "type": "Custom", "data": "" }),
+            other => {
+                return Err(crate::error::SdkError::InvalidParameter(format!(
+                    "unsupported release condition '{}': use timeout|provider|consumer|both|verifier|custom",
+                    other
+                )))
+            }
+        };
+
+        let (nonce, chain_id) = self.fetch_nonce_and_chain_id(payer).await;
+        let tx_type = serde_json::json!({
+            "type": "CreateEscrow",
+            "data": {
+                "payee": payee,
+                "amount": amount.to_string(),
+                "asset_id": asset,
+                "expires_at": expires_at,
+                "release_conditions": release_conditions_json,
+            }
+        });
+
+        let result: serde_json::Value = self
+            .rpc
+            .call(
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
+                    "from": payer,
+                    "to": payee,
+                    "value": 0u64,
+                    "gas_limit": 75_000u64,
+                    "gas_price": 1_000_000_000u64,
+                    "nonce": nonce,
+                    "chain_id": chain_id,
+                    "tx_type": tx_type,
+                }),
+            )
+            .await?;
+
+        Ok(result
+            .get("tx_hash")
+            .or_else(|| result.get("transaction_hash"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| result.as_str().map(|s| s.to_string()))
+            .unwrap_or_default())
+    }
+
+    /// Releases an escrow to the payee via a signed `ReleaseEscrow`
+    /// transaction. Authentication is via the ambient bearer JWT — see
+    /// [`Self::create_escrow`] for the full auth model. The bearer DID
+    /// MUST resolve to the original payer's wallet; the VM rejects
+    /// releases initiated by any other address.
+    pub async fn release_escrow(
+        &self,
+        payer: &str,
+        escrow_id: [u8; 32],
+        proof: Vec<u8>,
+    ) -> SdkResult<String> {
+        let (nonce, chain_id) = self.fetch_nonce_and_chain_id(payer).await;
+        let tx_type = serde_json::json!({
+            "type": "ReleaseEscrow",
+            "data": {
+                "escrow_id": escrow_id.to_vec(),
+                "proof": {
+                    "proof_type": "Timeout",
+                    "proof_data": proof,
+                    "signatures": []
+                }
+            }
+        });
+
+        let result: serde_json::Value = self
+            .rpc
+            .call(
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
+                    "from": payer,
+                    "to": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "value": 0u64,
+                    "gas_limit": 60_000u64,
+                    "gas_price": 1_000_000_000u64,
+                    "nonce": nonce,
+                    "chain_id": chain_id,
+                    "tx_type": tx_type,
+                }),
+            )
+            .await?;
+
+        Ok(result
+            .get("tx_hash")
+            .or_else(|| result.get("transaction_hash"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| result.as_str().map(|s| s.to_string()))
+            .unwrap_or_default())
+    }
+
+    /// Refunds an escrow back to the payer via a signed `RefundEscrow`
+    /// transaction. Same auth model as [`Self::create_escrow`]. The
+    /// escrow must be expired (or use `Timeout` / `Custom` release
+    /// conditions); refunding before expiry on a non-`Timeout` escrow is
+    /// rejected with `EscrowNotExpired`.
+    pub async fn refund_escrow(
+        &self,
+        payer: &str,
+        escrow_id: [u8; 32],
+    ) -> SdkResult<String> {
+        let (nonce, chain_id) = self.fetch_nonce_and_chain_id(payer).await;
+        let tx_type = serde_json::json!({
+            "type": "RefundEscrow",
+            "data": { "escrow_id": escrow_id.to_vec() }
+        });
+
+        let result: serde_json::Value = self
+            .rpc
+            .call(
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
+                    "from": payer,
+                    "to": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "value": 0u64,
+                    "gas_limit": 50_000u64,
+                    "gas_price": 1_000_000_000u64,
+                    "nonce": nonce,
+                    "chain_id": chain_id,
+                    "tx_type": tx_type,
+                }),
+            )
+            .await?;
+
+        Ok(result
+            .get("tx_hash")
+            .or_else(|| result.get("transaction_hash"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| result.as_str().map(|s| s.to_string()))
+            .unwrap_or_default())
+    }
+
+    /// Inspects an escrow record by its 32-byte escrow_id.
+    pub async fn get_escrow(&self, escrow_id: [u8; 32]) -> SdkResult<serde_json::Value> {
+        let escrow_id_hex = format!("0x{}", hex::encode(escrow_id));
         self.rpc
             .call(
-                "tenzro_createEscrow",
-                serde_json::json!([{
-                    "payee": payee,
-                    "amount": amount,
-                    "asset": asset,
-                    "conditions": conditions,
-                }]),
+                "tenzro_getEscrow",
+                serde_json::json!({ "escrow_id": escrow_id_hex }),
             )
             .await
     }
 
-    /// Releases funds from escrow
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let settlement = client.settlement();
-    ///
-    /// let proof = vec![0u8; 32]; // ZK proof bytes
-    /// let tx_hash = settlement.release_escrow("escrow-123", proof).await?;
-    /// println!("Release transaction: {}", tx_hash);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn release_escrow(
-        &self,
-        escrow_id: &str,
-        proof: Vec<u8>,
-    ) -> SdkResult<String> {
-        self.rpc
-            .call(
-                "tenzro_releaseEscrow",
-                serde_json::json!([{
-                    "escrow_id": escrow_id,
-                    "proof": hex::encode(proof),
-                }]),
+    /// Internal helper: fetch nonce + chain_id with safe defaults if the RPC is unavailable.
+    async fn fetch_nonce_and_chain_id(&self, address: &str) -> (u64, u64) {
+        let nonce = self
+            .rpc
+            .call::<serde_json::Value>(
+                "eth_getTransactionCount",
+                serde_json::json!([address, "latest"]),
             )
             .await
+            .ok()
+            .and_then(|v| {
+                v.as_str()
+                    .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
+            })
+            .unwrap_or(0);
+        let chain_id = self
+            .rpc
+            .call::<serde_json::Value>("eth_chainId", serde_json::json!([]))
+            .await
+            .ok()
+            .and_then(|v| {
+                v.as_str()
+                    .and_then(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
+            })
+            .unwrap_or(1337);
+        (nonce, chain_id)
     }
 
     /// Opens a micropayment channel

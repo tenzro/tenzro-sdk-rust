@@ -422,7 +422,8 @@ impl TenzroClient {
         StreamingClient::new(self.rpc.clone())
     }
 
-    /// Creates an auth client for onboarding key management
+    /// Creates an auth client for OAuth 2.1 + DPoP onboarding,
+    /// JWT/DID revocation, and HITL approval flows.
     pub fn auth(&self) -> AuthClient {
         AuthClient::new(self.rpc.clone())
     }

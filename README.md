@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Module | Description |
 |--------|-------------|
-| `auth` | Issue, list, revoke, and validate onboarding keys |
+| `auth` | OAuth 2.1 + DPoP onboarding (human, delegated agent, autonomous agent), JWT/DID revocation, HITL approvals |
 | `wallet` | Create wallets, check balances, send transactions |
 | `identity` | TDIP DIDs, credentials, usernames, delegation |
 | `agent` | Register agents, spawn, swarms, messaging |
@@ -85,45 +85,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `rpc` | JSON-RPC client |
 | `error` | Error types |
 
-## Auth (Onboarding Keys)
+## Auth (OAuth 2.1 + DPoP Onboarding)
+
+Onboarding uses OAuth 2.1 (RFC 6749 successor) + DPoP-bound JWTs (RFC 9449)
++ Rich Authorization Requests (RFC 9396). Participants — humans, delegated
+agents under a human controller, and fully autonomous agents — onboard via
+three RPCs that each provision a TDIP identity + MPC wallet and return a
+JWT bound to a holder-supplied DPoP `jkt` (RFC 7638 thumbprint of the
+holder's Ed25519 public key).
 
 ```rust
-use tenzro_sdk::{TenzroClient, identity::IdentityType};
+use tenzro_sdk::TenzroClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = TenzroClient::new("https://rpc.tenzro.network").await?;
     let auth = client.auth();
 
-    // Issue an onboarding key
-    let key = auth.issue_onboarding_key(
-        "Alice",
-        "did:tenzro:human:abc123",
-        "0x1234abcd",
-        IdentityType::Human,
+    // Onboard a new human — returns identity, MPC wallet, and access token
+    let session = auth.onboard_human("Alice", None).await?;
+    println!("DID:    {}", session.identity["did"]);
+    println!("Wallet: {}", session.wallet["address"]);
+    println!("Token:  {}…", &session.access_token[..32]);
+
+    // Subsequent privileged calls authenticate ambiently — the SDK forwards
+    // these env vars as `Authorization: DPoP <jwt>` and `DPoP: <proof>` on
+    // every JSON-RPC request.
+    std::env::set_var("TENZRO_BEARER_JWT", &session.access_token);
+    std::env::set_var("TENZRO_DPOP_PROOF", "<freshly minted DPoP proof>");
+
+    // Onboard a delegated agent under Alice's act-chain
+    let did = session.identity["did"].as_str().unwrap_or_default().to_string();
+    let _agent = auth.onboard_delegated_agent(
+        &did,
+        vec!["inference".into(), "settlement".into()],
+        serde_json::json!({
+            "max_transaction_value": "1000000000000000000",
+            "allowed_chains": ["tenzro"],
+        }),
+        None,
     ).await?;
-    println!("Key: {}", key.key);
-    println!("Expires: {}", key.expires_at);
 
-    // List all active keys
-    let keys = auth.list_onboarding_keys().await?;
-    for k in &keys {
-        println!("{} — {} ({})", k.name, k.did, k.status);
-    }
-
-    // Validate a key
-    let result = auth.validate_onboarding_key(&key.key).await?;
-    if result.valid {
-        println!("Valid for DID: {}", result.did.unwrap_or_default());
-    }
-
-    // Revoke a key
-    let revoke = auth.revoke_onboarding_key("did:tenzro:human:abc123").await?;
-    println!("Revoked: {}", revoke.revoked);
+    // Revoke (cascades through act-chain by DID)
+    auth.revoke_did(&did, Some("lost device")).await?;
 
     Ok(())
 }
 ```
+
+Holder-side DPoP proof generation is left to the caller — sign a per-request
+JWT with your Ed25519 holder key (whose RFC 7638 thumbprint matches `dpop_jkt`)
+and the JWS-compact form lands in `TENZRO_DPOP_PROOF`. See RFC 9449 §4.
 
 ## Transaction signing
 
@@ -132,17 +144,19 @@ which includes the server-supplied `timestamp` field. Every transaction is
 synchronously verified against its Ed25519 signature before acceptance; an
 invalid or missing signature returns JSON-RPC error `-32003`.
 
-Three supported flows:
+All signing is **ambient and server-side**. `tenzro_signAndSendTransaction`
+resolves the signer from the DPoP-bound bearer JWT (`TENZRO_BEARER_JWT`)
+and signs against the holder's MPC wallet. Two supported flows:
 
-1. **Atomic server-side sign + send (recommended):** forward the hex-encoded
-   private key to `tenzro_signAndSendTransaction` — the node assembles,
-   hashes, signs, verifies, and submits the transaction in one call.
+1. **Atomic server-side sign + send (recommended).** With ambient auth
+   configured, the SDK forwards the bearer + DPoP proof; the node assembles,
+   hashes, signs against the MPC wallet bound to the JWT, verifies, and
+   submits — all in one call.
 
    ```rust
    let tx_hash: String = client
        .rpc()
        .call("tenzro_signAndSendTransaction", serde_json::json!([{
-           "private_key": "0x...",
            "from": "0x...",
            "to": "0x...",
            "value": "0x...",
@@ -152,16 +166,11 @@ Three supported flows:
        .await?;
    ```
 
-2. **Offline sign, then submit:** call `tenzro_signTransaction` to obtain
-   `{signature, public_key, timestamp, tx_hash}` and resubmit later via
-   `eth_sendRawTransaction` with all four fields intact.
-
-3. **Pre-signed submission:** call `eth_sendRawTransaction` directly with
-   `signature`, `public_key`, and explicit `timestamp` matching a
-   client-computed `Transaction::hash()`. `WalletClient::send()` dispatches
-   the bare `{from, to, value}` payload and will be rejected unless the
-   caller adds these fields — prefer flow (1) for typical usage. See the
-   `crates/tenzro-cli` `wallet send` command for a reference.
+2. **Pre-signed submission.** For holders who want to control signing
+   client-side, call `eth_sendRawTransaction` directly with `signature`,
+   `public_key`, and explicit `timestamp` matching a client-computed
+   `Transaction::hash()`. The signer must still match a holder identity
+   visible to the node.
 
 ## Durable state
 

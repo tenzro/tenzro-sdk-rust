@@ -124,7 +124,9 @@ pub use app::{
 };
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;
-pub use auth::{AuthClient, OnboardingKey, RevokeKeyResponse, ValidateKeyResponse};
+pub use auth::{
+    ApprovalDecision, AuthClient, OnboardSession, PendingApprovals, RevokeResponse,
+};
 pub use ap2::{
     Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
 };

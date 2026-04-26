@@ -86,14 +86,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let settlement = client.settlement();
 
-    // Create escrow
-    let escrow_id = settlement.create_escrow(
-        "0x0000000000000000000000000000000000000001",
-        1000000,
+    // Create on-chain escrow (signed CreateEscrow tx). Authentication is
+    // ambient — set TENZRO_BEARER_JWT + TENZRO_DPOP_PROOF after onboarding
+    // via `client.auth()`. Signing happens server-side against the holder's
+    // MPC wallet, so no raw private key crosses the SDK surface.
+    let payer_addr = std::env::var("TENZRO_PAYER")
+        .unwrap_or_else(|_| "0x0000000000000000000000000000000000000000000000000000000000000001".to_string());
+    let escrow_tx_hash = settlement.create_escrow(
+        &payer_addr,
+        "0x0000000000000000000000000000000000000000000000000000000000000002",
+        1_000_000_000_000_000_000u128,
         "TNZO",
+        u64::MAX,
         "both_signatures",
     ).await?;
-    println!("Created escrow: {}", escrow_id);
+    println!("CreateEscrow tx: {}", escrow_tx_hash);
 
     // Open payment channel
     let channel_id = settlement.open_payment_channel(

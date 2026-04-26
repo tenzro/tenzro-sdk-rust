@@ -75,10 +75,25 @@ impl RpcClient {
 
         tracing::debug!("RPC call: {} (id={})", method, id);
 
-        let response = self
-            .http
-            .post(&self.endpoint)
-            .json(&request)
+        // Ambient auth: forward `Authorization: DPoP <jwt>` and `DPoP: <proof>`
+        // headers from environment variables when set. This mirrors the CLI
+        // (`crates/tenzro-cli/src/rpc.rs`) and keeps SDK callsites free of
+        // private-key handling — the holder mints the JWT once during
+        // onboarding via `AuthClient`, then exports the token + per-call
+        // DPoP proof through `TENZRO_BEARER_JWT` / `TENZRO_DPOP_PROOF`.
+        let mut req = self.http.post(&self.endpoint).json(&request);
+        if let Ok(bearer) = std::env::var("TENZRO_BEARER_JWT") {
+            if !bearer.is_empty() {
+                req = req.header("Authorization", format!("DPoP {}", bearer));
+            }
+        }
+        if let Ok(dpop) = std::env::var("TENZRO_DPOP_PROOF") {
+            if !dpop.is_empty() {
+                req = req.header("DPoP", dpop);
+            }
+        }
+
+        let response = req
             .send()
             .await
             .map_err(|e| {

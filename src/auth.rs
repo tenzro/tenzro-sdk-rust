@@ -1,254 +1,221 @@
-//! Onboarding key management for Tenzro Network
+//! OAuth 2.1 + DPoP onboarding helpers for Tenzro Network.
 //!
-//! This module provides onboarding key issuance, listing, revocation, and
-//! validation for network participants.
+//! Onboarding uses OAuth 2.1 (RFC 6749 successor) + DPoP-bound JWTs
+//! (RFC 9449) + Rich Authorization Requests (RFC 9396). Participants —
+//! humans, delegated agents under a human controller, and fully
+//! autonomous agents — onboard via the three RPCs exposed here. Each
+//! call provisions a TDIP identity (+ MPC wallet) and returns a JWT
+//! bound to a holder-supplied DPoP `jkt` (RFC 7638 thumbprint of the
+//! holder's Ed25519 public key).
+//!
+//! Subsequent privileged calls (sign + send transaction, escrow create,
+//! release/refund, etc.) authenticate by sending the JWT in the
+//! `Authorization: DPoP <jwt>` header alongside a per-request DPoP proof
+//! in the `DPoP` header. The SDK forwards both headers automatically when
+//! the `TENZRO_BEARER_JWT` and `TENZRO_DPOP_PROOF` environment variables
+//! are set — see [`crate::rpc::RpcClient`] for the transport-level wiring.
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use tenzro_sdk::{TenzroClient, config::SdkConfig};
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let client = TenzroClient::connect(SdkConfig::testnet()).await?;
+//! let auth = client.auth();
+//! let session = auth.onboard_human("Alice", None).await?;
+//! println!("DID:    {}", session.identity["did"]);
+//! println!("Wallet: {}", session.wallet["address"]);
+//! println!("Token:  {}…", &session.access_token[..32]);
+//! # Ok(()) }
+//! ```
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;
-use crate::identity::IdentityType;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Client for onboarding key operations
+/// Client for OAuth 2.1 onboarding RPCs.
 ///
-/// # Example
-///
-/// ```no_run
-/// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-/// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # let config = SdkConfig::testnet();
-/// # let client = TenzroClient::connect(config).await?;
-/// let auth = client.auth();
-///
-/// // Issue an onboarding key for a new participant
-/// let key = auth.issue_onboarding_key(
-///     "Alice",
-///     "did:tenzro:human:abc123",
-///     "0x1234abcd",
-///     tenzro_sdk::identity::IdentityType::Human,
-/// ).await?;
-/// println!("Onboarding key: {}", key.key);
-/// # Ok(())
-/// # }
-/// ```
+/// Construct via [`crate::TenzroClient::auth`].
 #[derive(Clone)]
 pub struct AuthClient {
     rpc: Arc<RpcClient>,
 }
 
 impl AuthClient {
-    /// Creates a new auth client
     pub(crate) fn new(rpc: Arc<RpcClient>) -> Self {
         Self { rpc }
     }
 
-    /// Issues an onboarding key for a new participant
-    ///
-    /// An onboarding key allows a participant to join the network without
-    /// going through the full identity registration flow. The key is tied
-    /// to a specific DID, address, and identity type.
+    /// Onboard a new **human** participant — provisions a TDIP `did:tenzro:human:*`
+    /// identity, a fresh MPC wallet, and returns an OAuth 2.1 access token.
     ///
     /// # Arguments
     ///
-    /// * `name` - Human-readable name for the participant
-    /// * `did` - The DID to associate with the key
-    /// * `address` - The wallet address to associate with the key
-    /// * `identity_type` - Whether this is a `Human` or `Machine` identity
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig, identity::IdentityType};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let auth = client.auth();
-    /// let key = auth.issue_onboarding_key(
-    ///     "Alice",
-    ///     "did:tenzro:human:abc123",
-    ///     "0xdeadbeef",
-    ///     IdentityType::Human,
-    /// ).await?;
-    /// println!("Key: {}", key.key);
-    /// println!("Expires: {}", key.expires_at);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn issue_onboarding_key(
+    /// * `display_name` — human-readable label surfaced in approver UIs.
+    /// * `dpop_jkt` — optional RFC 7638 JWK thumbprint of the holder's Ed25519
+    ///   public key. If supplied, the issued JWT is DPoP-bound to that key
+    ///   and every subsequent privileged call must accompany the bearer with
+    ///   a fresh DPoP proof signed by the same key. Strongly recommended.
+    pub async fn onboard_human(
         &self,
-        name: &str,
-        did: &str,
-        address: &str,
-        identity_type: IdentityType,
-    ) -> SdkResult<OnboardingKey> {
+        display_name: &str,
+        dpop_jkt: Option<&str>,
+    ) -> SdkResult<OnboardSession> {
+        let mut params = serde_json::json!({ "display_name": display_name });
+        if let Some(jkt) = dpop_jkt {
+            params["dpop_jkt"] = serde_json::Value::String(jkt.to_string());
+        }
+        self.rpc.call("tenzro_onboardHuman", params).await
+    }
+
+    /// Onboard a **delegated agent** that acts on behalf of an existing
+    /// `controller_did` (typically a human). The agent inherits the
+    /// controller's act-chain and is bounded by `delegation_scope`.
+    ///
+    /// Revoking the controller DID via [`Self::revoke_did`] cascades and
+    /// invalidates this agent's token automatically.
+    pub async fn onboard_delegated_agent(
+        &self,
+        controller_did: &str,
+        capabilities: Vec<String>,
+        delegation_scope: serde_json::Value,
+        dpop_jkt: Option<&str>,
+    ) -> SdkResult<OnboardSession> {
+        let mut params = serde_json::json!({
+            "controller_did": controller_did,
+            "capabilities": capabilities,
+            "delegation_scope": delegation_scope,
+        });
+        if let Some(jkt) = dpop_jkt {
+            params["dpop_jkt"] = serde_json::Value::String(jkt.to_string());
+        }
         self.rpc
-            .call(
-                "tenzro_issueOnboardingKey",
-                serde_json::json!([{
-                    "name": name,
-                    "did": did,
-                    "address": address,
-                    "identity_type": identity_type,
-                }]),
-            )
+            .call("tenzro_onboardDelegatedAgent", params)
             .await
     }
 
-    /// Lists all active onboarding keys
-    ///
-    /// Returns all onboarding keys that have been issued and not yet revoked.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let auth = client.auth();
-    /// let keys = auth.list_onboarding_keys().await?;
-    /// for key in &keys {
-    ///     println!("{} — {} ({})", key.name, key.did, key.status);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn list_onboarding_keys(&self) -> SdkResult<Vec<OnboardingKey>> {
+    /// Onboard a **fully autonomous agent**. Unlike a delegated agent, this
+    /// has no human controller — instead the agent must post a TNZO bond
+    /// (slashable on misbehaviour) at `bond_funding_address` before
+    /// onboarding succeeds.
+    pub async fn onboard_autonomous_agent(
+        &self,
+        bond_funding_address: &str,
+        dpop_jkt: Option<&str>,
+    ) -> SdkResult<OnboardSession> {
+        let mut params = serde_json::json!({
+            "bond_funding_address": bond_funding_address,
+        });
+        if let Some(jkt) = dpop_jkt {
+            params["dpop_jkt"] = serde_json::Value::String(jkt.to_string());
+        }
         self.rpc
-            .call("tenzro_listOnboardingKeys", serde_json::json!([]))
+            .call("tenzro_onboardAutonomousAgent", params)
             .await
     }
 
-    /// Revokes an onboarding key by DID or key hash
-    ///
-    /// Once revoked, the key can no longer be used to join the network.
-    ///
-    /// # Arguments
-    ///
-    /// * `did_or_hash` - Either the DID associated with the key, or the key hash
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let auth = client.auth();
-    /// let result = auth.revoke_onboarding_key("did:tenzro:human:abc123").await?;
-    /// println!("Revoked: {}", result.revoked);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn revoke_onboarding_key(
-        &self,
-        did_or_hash: &str,
-    ) -> SdkResult<RevokeKeyResponse> {
-        self.rpc
-            .call(
-                "tenzro_revokeOnboardingKey",
-                serde_json::json!([{ "did_or_hash": did_or_hash }]),
-            )
-            .await
+    /// Revoke a single JWT by its `jti` claim. The token is added to the
+    /// engine's revocation set and any subsequent validation fails.
+    pub async fn revoke_jwt(&self, jti: &str, reason: Option<&str>) -> SdkResult<RevokeResponse> {
+        let params = serde_json::json!({
+            "jti": jti,
+            "reason": reason.unwrap_or("revoked via SDK"),
+        });
+        self.rpc.call("tenzro_revokeJwt", params).await
     }
 
-    /// Validates an onboarding key
-    ///
-    /// Checks that the key is valid, not expired, and not revoked.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The onboarding key string to validate
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let auth = client.auth();
-    /// let result = auth.validate_onboarding_key("tnzo_key_abc123").await?;
-    /// if result.valid {
-    ///     println!("Key is valid for DID: {}", result.did.unwrap_or_default());
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn validate_onboarding_key(
+    /// Revoke an entire identity by DID. Every JWT minted under this DID
+    /// (and every descendant DID in the act-chain) is invalidated
+    /// transitively.
+    pub async fn revoke_did(&self, did: &str, reason: Option<&str>) -> SdkResult<RevokeResponse> {
+        let params = serde_json::json!({
+            "did": did,
+            "reason": reason.unwrap_or("revoked via SDK"),
+        });
+        self.rpc.call("tenzro_revokeDid", params).await
+    }
+
+    /// List approvals in `Pending` status for the given approver DID.
+    /// Returns the records the approver should review and decide on.
+    pub async fn list_pending_approvals(
         &self,
-        key: &str,
-    ) -> SdkResult<ValidateKeyResponse> {
-        self.rpc
-            .call(
-                "tenzro_validateOnboardingKey",
-                serde_json::json!([{ "key": key }]),
-            )
-            .await
+        approver_did: &str,
+    ) -> SdkResult<PendingApprovals> {
+        let params = serde_json::json!({ "approver_did": approver_did });
+        self.rpc.call("tenzro_listPendingApprovals", params).await
+    }
+
+    /// Decide a pending approval — either `"approved"` or `"denied"`. Only
+    /// the recorded approver DID may decide; mismatched approvers are
+    /// rejected with JSON-RPC error code `-32001` (forbidden).
+    pub async fn decide_approval(
+        &self,
+        approval_id: &str,
+        decision: &str,
+        approver_did: &str,
+    ) -> SdkResult<ApprovalDecision> {
+        let params = serde_json::json!({
+            "approval_id": approval_id,
+            "decision": decision,
+            "approver_did": approver_did,
+        });
+        self.rpc.call("tenzro_decideApproval", params).await
     }
 }
 
-/// An onboarding key issued to a network participant
+/// One of the three onboarding RPCs returns this session bundle.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OnboardingKey {
-    /// The key string (opaque token)
-    pub key: String,
-    /// Human-readable name for the participant
+pub struct OnboardSession {
+    /// Provisioned TDIP identity record.
+    pub identity: serde_json::Value,
+    /// Provisioned MPC wallet record (id + address).
+    pub wallet: serde_json::Value,
+    /// OAuth 2.1 access token (DPoP-bound JWT). Send as
+    /// `Authorization: DPoP <token>` on subsequent privileged calls.
+    pub access_token: String,
+    /// Always `"Bearer"` (RFC 6750 token type, even though DPoP-bound).
     #[serde(default)]
-    pub name: String,
-    /// The DID associated with this key
+    pub token_type: String,
+    /// `true` iff the token requires a DPoP proof on every call.
     #[serde(default)]
-    pub did: String,
-    /// The wallet address associated with this key
+    pub dpop_bound: bool,
+    /// Token lifetime in seconds.
     #[serde(default)]
-    pub address: String,
-    /// Identity type ("Human" or "Machine")
-    #[serde(default)]
-    pub identity_type: String,
-    /// Key status ("active", "revoked", "expired")
+    pub expires_in: u64,
+}
+
+/// Result of `revoke_jwt` / `revoke_did`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevokeResponse {
+    /// Engine status string — typically `"revoked"`.
     #[serde(default)]
     pub status: String,
-    /// ISO-8601 timestamp when the key was issued
+    /// Number of JTIs invalidated by this call (>1 indicates cascade).
     #[serde(default)]
-    pub issued_at: String,
-    /// ISO-8601 timestamp when the key expires (if applicable)
-    #[serde(default)]
-    pub expires_at: String,
-    /// SHA-256 hash of the key (safe to store/log)
-    #[serde(default)]
-    pub key_hash: String,
+    pub affected_jti_count: u64,
 }
 
-/// Response from revoking an onboarding key
+/// Result of `list_pending_approvals`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RevokeKeyResponse {
-    /// Whether the key was successfully revoked
-    pub revoked: bool,
-    /// The DID whose key was revoked
+pub struct PendingApprovals {
+    /// Number of pending records returned.
     #[serde(default)]
-    pub did: String,
-    /// Status message
+    pub count: u64,
+    /// The records themselves — opaque JSON to keep the SDK decoupled
+    /// from `tenzro-auth` storage internals.
     #[serde(default)]
-    pub message: String,
+    pub pending: Vec<serde_json::Value>,
 }
 
-/// Response from validating an onboarding key
+/// Result of `decide_approval`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateKeyResponse {
-    /// Whether the key is currently valid
-    pub valid: bool,
-    /// The DID associated with the key (if valid)
-    pub did: Option<String>,
-    /// The wallet address associated with the key (if valid)
-    pub address: Option<String>,
-    /// Identity type (if valid)
-    pub identity_type: Option<String>,
-    /// Reason the key is invalid (if not valid)
+pub struct ApprovalDecision {
+    /// New status — `"Approved"` or `"Denied"`.
     #[serde(default)]
-    pub reason: String,
+    pub status: String,
+    /// Echo of the approval id.
+    #[serde(default)]
+    pub approval_id: String,
 }

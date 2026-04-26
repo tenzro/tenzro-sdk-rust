@@ -6,6 +6,8 @@ Cargo.lock
 .DS_Store
 .env
 
-# Claude Code
+# Claude Code (project-local AI assistant context — never commit)
 CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
 .claude/
