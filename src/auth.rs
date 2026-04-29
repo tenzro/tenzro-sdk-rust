@@ -10,10 +10,11 @@
 //!
 //! Subsequent privileged calls (sign + send transaction, escrow create,
 //! release/refund, etc.) authenticate by sending the JWT in the
-//! `Authorization: DPoP <jwt>` header alongside a per-request DPoP proof
-//! in the `DPoP` header. The SDK forwards both headers automatically when
-//! the `TENZRO_BEARER_JWT` and `TENZRO_DPOP_PROOF` environment variables
-//! are set — see [`crate::rpc::RpcClient`] for the transport-level wiring.
+//! `Authorization: Bearer <jwt>` header alongside a per-request DPoP proof
+//! in the `DPoP` header (when the token is DPoP-bound). The SDK forwards
+//! both headers automatically when the `TENZRO_BEARER_JWT` and
+//! `TENZRO_DPOP_PROOF` environment variables are set — see
+//! [`crate::rpc::RpcClient`] for the transport-level wiring.
 //!
 //! # Example
 //!
@@ -116,6 +117,51 @@ impl AuthClient {
             .await
     }
 
+    /// Exchange a long-lived refresh token for a fresh access token. Mirrors
+    /// OAuth 2.1 `grant_type=refresh_token`. Refresh tokens are opaque UUIDs
+    /// with a 30-day TTL; access tokens are HS256 JWTs with a 1-hour TTL.
+    ///
+    /// If `dpop_jkt` is supplied, the new access token is DPoP-bound to that
+    /// thumbprint. The refresh token itself is **not** rotated in V1.
+    pub async fn refresh_token(
+        &self,
+        refresh_token: &str,
+        dpop_jkt: Option<&str>,
+    ) -> SdkResult<RefreshedToken> {
+        let mut params = serde_json::json!({ "refresh_token": refresh_token });
+        if let Some(jkt) = dpop_jkt {
+            params["dpop_jkt"] = serde_json::Value::String(jkt.to_string());
+        }
+        self.rpc.call("tenzro_refreshToken", params).await
+    }
+
+    /// Mint a fresh access + refresh token pair against an existing MPC
+    /// wallet. Useful when the holder already provisioned a wallet via
+    /// `tenzro_createWallet` and now wants OAuth-style auth credentials
+    /// without re-running the full onboarding flow.
+    ///
+    /// Returns the same shape as the three onboard variants —
+    /// `OnboardSession` — so it slots into existing session-management code.
+    pub async fn link_wallet_for_auth(
+        &self,
+        wallet_id: &str,
+        dpop_jkt: Option<&str>,
+        display_name: Option<&str>,
+        ttl_secs: Option<u64>,
+    ) -> SdkResult<OnboardSession> {
+        let mut params = serde_json::json!({ "wallet_id": wallet_id });
+        if let Some(jkt) = dpop_jkt {
+            params["dpop_jkt"] = serde_json::Value::String(jkt.to_string());
+        }
+        if let Some(name) = display_name {
+            params["display_name"] = serde_json::Value::String(name.to_string());
+        }
+        if let Some(ttl) = ttl_secs {
+            params["ttl_secs"] = serde_json::Value::Number(ttl.into());
+        }
+        self.rpc.call("tenzro_linkWalletForAuth", params).await
+    }
+
     /// Revoke a single JWT by its `jti` claim. The token is added to the
     /// engine's revocation set and any subsequent validation fails.
     pub async fn revoke_jwt(&self, jti: &str, reason: Option<&str>) -> SdkResult<RevokeResponse> {
@@ -165,25 +211,57 @@ impl AuthClient {
     }
 }
 
-/// One of the three onboarding RPCs returns this session bundle.
+/// One of the three onboarding RPCs (or `link_wallet_for_auth`) returns
+/// this session bundle.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnboardSession {
     /// Provisioned TDIP identity record.
     pub identity: serde_json::Value,
     /// Provisioned MPC wallet record (id + address).
     pub wallet: serde_json::Value,
-    /// OAuth 2.1 access token (DPoP-bound JWT). Send as
-    /// `Authorization: DPoP <token>` on subsequent privileged calls.
+    /// OAuth 2.1 access token (HS256 JWT, optionally DPoP-bound). Send as
+    /// `Authorization: Bearer <token>` on subsequent privileged calls.
+    /// When DPoP-bound, also send a fresh `DPoP: <proof>` header.
     pub access_token: String,
     /// Always `"Bearer"` (RFC 6750 token type, even though DPoP-bound).
     #[serde(default)]
     pub token_type: String,
-    /// `true` iff the token requires a DPoP proof on every call.
-    #[serde(default)]
-    pub dpop_bound: bool,
-    /// Token lifetime in seconds.
+    /// Access-token lifetime in seconds (default 3600).
     #[serde(default)]
     pub expires_in: u64,
+    /// Long-lived refresh token (opaque UUID, 30-day TTL). Exchange via
+    /// [`AuthClient::refresh_token`] when the access token expires. Treat
+    /// as a secret — leakage allows minting access tokens until revocation.
+    #[serde(default)]
+    pub refresh_token: String,
+    /// Refresh-token lifetime in seconds (default 30 days).
+    #[serde(default)]
+    pub refresh_token_expires_in: u64,
+    /// `true` iff the access token requires a DPoP proof on every call.
+    #[serde(default)]
+    pub dpop_bound: bool,
+    /// RFC 9396 Rich Authorization Request payload echoed back, describing
+    /// the act-chain and capabilities the token is authorized for.
+    #[serde(default)]
+    pub authorization_details: serde_json::Value,
+}
+
+/// Result of [`AuthClient::refresh_token`]. The refresh token is **not**
+/// rotated in V1 — only the access token changes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshedToken {
+    /// New access-token JWT.
+    pub access_token: String,
+    /// Always `"Bearer"`.
+    #[serde(default)]
+    pub token_type: String,
+    /// Access-token lifetime in seconds.
+    #[serde(default)]
+    pub expires_in: u64,
+    /// `true` iff the new access token is DPoP-bound (i.e., the request
+    /// supplied `dpop_jkt` and the engine encoded a `cnf.jkt` claim).
+    #[serde(default)]
+    pub dpop_bound: bool,
 }
 
 /// Result of `revoke_jwt` / `revoke_did`.
