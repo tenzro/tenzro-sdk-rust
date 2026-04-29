@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `wallet` | Create wallets, check balances, send transactions |
 | `identity` | TDIP DIDs, credentials, usernames, delegation |
 | `agent` | Register agents, spawn, swarms, messaging |
-| `inference` | Model discovery, inference requests, streaming |
+| `inference` | Model discovery, chat, and multi-modal inference (forecast, vision embed/similarity, text embedding, segmentation, detection, audio ASR, video embed) — modality-aware routing via `tenzro_forecast`, `tenzro_visionEmbed`, `tenzro_textEmbed`, `tenzro_segment`, `tenzro_detect`, `tenzro_transcribe`, `tenzro_videoEmbed` |
 | `token` | Create tokens, cross-VM transfers, registry |
 | `nft` | Collections, minting, transfers, cross-VM pointers |
 | `bridge` | LayerZero, CCIP, deBridge, LI.FI bridging |

@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("----------------------------------------");
 
     let config = SdkConfig::builder()
-        .endpoint("https://testnet.tenzro.network")
+        .endpoint("https://rpc.tenzro.network")
         .timeout(30000)
         .max_retries(3)
         .build()?;

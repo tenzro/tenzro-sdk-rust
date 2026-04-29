@@ -96,35 +96,60 @@ impl WalletClient {
         })
     }
 
-    /// Sends TNZO to another address.
+    /// Signs and sends a TNZO transfer atomically via the node's hybrid
+    /// signing path (`tenzro_signAndSendTransaction`).
     ///
-    /// **Signing contract:** The Tenzro node canonicalises the transaction hash
-    /// over `Transaction::hash()`, which includes the server-supplied `timestamp`
-    /// field. It synchronously verifies the Ed25519 signature before accepting
-    /// and returns JSON-RPC error `-32003` on an invalid or missing signature.
-    ///
-    /// This helper dispatches the bare `{from, to, value}` payload to
-    /// `eth_sendRawTransaction`; the node will reject it unless the same call
-    /// also carries `signature`, `public_key`, and explicit `timestamp` matching
-    /// a client-computed `Transaction::hash()`. For most workflows prefer
-    /// `tenzro_signAndSendTransaction` directly via [`RpcClient::call`] — that
-    /// path forwards a hex-encoded private key and lets the node assemble,
-    /// hash, sign, verify, and submit the transaction atomically. See the
-    /// `crates/tenzro-cli` `wallet send` command for a reference implementation.
+    /// The node identifies the signing wallet from the ambient auth
+    /// context (DPoP-bound bearer JWT), constructs the canonical
+    /// `Transaction::hash()` preimage including the PQ public key, signs
+    /// both the Ed25519 and ML-DSA-65 legs, verifies them against the
+    /// preimage, and submits to the mempool. Private keys never travel
+    /// over the wire.
     pub async fn send(
         &self,
         from: Address,
         to: Address,
         amount: u64,
     ) -> SdkResult<String> {
-        let tx = serde_json::json!({
-            "from": format!("0x{}", hex::encode(from.as_bytes())),
-            "to": format!("0x{}", hex::encode(to.as_bytes())),
-            "value": format!("0x{:x}", amount),
-        });
+        let from_hex = format!("0x{}", hex::encode(from.as_bytes()));
+        let to_hex = format!("0x{}", hex::encode(to.as_bytes()));
+
+        let nonce_hex: String = self
+            .rpc
+            .call(
+                "tenzro_getNonce",
+                serde_json::json!([from_hex.clone()]),
+            )
+            .await?;
+        let nonce = u64::from_str_radix(
+            nonce_hex.strip_prefix("0x").unwrap_or(&nonce_hex),
+            16,
+        )
+        .unwrap_or(0);
+
+        let chain_hex: String = self
+            .rpc
+            .call("eth_chainId", serde_json::json!([]))
+            .await?;
+        let chain_id = u64::from_str_radix(
+            chain_hex.strip_prefix("0x").unwrap_or(&chain_hex),
+            16,
+        )
+        .unwrap_or(1337);
 
         self.rpc
-            .call("eth_sendRawTransaction", serde_json::json!([tx]))
+            .call(
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
+                    "from": from_hex,
+                    "to": to_hex,
+                    "value": amount,
+                    "gas_limit": 21000,
+                    "gas_price": 1_000_000_000u64,
+                    "nonce": nonce,
+                    "chain_id": chain_id,
+                }),
+            )
             .await
     }
 
