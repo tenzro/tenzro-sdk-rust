@@ -6,7 +6,7 @@
 [package]
 name = "tenzro-sdk"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Tenzro Network SDK — wallets, identity, agents, inference, bridge, crypto, TEE, ZK proofs, custody, and settlement"
 license = "Apache-2.0"
 repository = "https://github.com/tenzro/tenzro-sdk-rust"

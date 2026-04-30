@@ -108,7 +108,7 @@ pub mod wormhole;
 pub mod zk;
 
 // Re-export main types for convenience
-pub use client::{BlockInfo, FaucetResponse, NodeInfo, NodeStatus, TenzroClient};
+pub use client::{BlockInfo, BlockRange, FaucetResponse, NodeInfo, NodeStatus, TenzroClient};
 pub use config::SdkConfig;
 pub use error::{SdkError, SdkResult};
 pub use rpc::RpcClient;

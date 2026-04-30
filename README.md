@@ -43,6 +43,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Catch-up sync
+
+A node lagging behind the network can pull batches of historical blocks via
+`get_block_range`. The call returns up to 256 blocks per request with a
+`next_height` + `more_available` cursor for paginating past pruning gaps:
+
+```rust
+let mut cur = 0u64;
+loop {
+    let r = client.get_block_range(cur, cur + 255, Some(256)).await?;
+    for b in &r.blocks { /* import block */ }
+    if !r.more_available { break; }
+    cur = r.next_height;
+}
+```
+
+`client.syncing()` reports the live gap by comparing the local tip against
+peer-reported network tips (gossiped on `tenzro/status/1.0.0`); pair it with
+`get_block_range` to drive a catch-up loop only when needed.
+
 ## Modules (37)
 
 | Module | Description |

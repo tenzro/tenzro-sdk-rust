@@ -136,6 +136,34 @@ impl TenzroClient {
         Ok(block)
     }
 
+    /// Fetch a contiguous range of blocks for catch-up sync.
+    ///
+    /// Returns up to `max_results` blocks (default 64, capped at 256). The
+    /// response includes `next_height` and `more_available` so a lagging
+    /// client can paginate forward until caught up. `more_available` reflects
+    /// whether the chain has further blocks beyond `next_height`, independent
+    /// of the requested `end_height`, so a sync loop can step over pruning
+    /// gaps by repeatedly calling with `start_height = response.next_height`.
+    pub async fn get_block_range(
+        &self,
+        start_height: u64,
+        end_height: u64,
+        max_results: Option<u64>,
+    ) -> SdkResult<BlockRange> {
+        let mut params = serde_json::json!({
+            "startHeight": start_height,
+            "endHeight": end_height,
+        });
+        if let Some(max) = max_results {
+            params["maxResults"] = serde_json::json!(max);
+        }
+        let range: BlockRange = self
+            .rpc
+            .call("tenzro_getBlockRange", params)
+            .await?;
+        Ok(range)
+    }
+
     /// Gets the balance of an address (in wei)
     pub async fn get_balance(&self, address: Address) -> SdkResult<u128> {
         let hex: String = self
@@ -517,6 +545,42 @@ pub struct BlockInfo {
     /// Gas limit
     #[serde(default)]
     pub gas_limit: u64,
+}
+
+/// Paginated block range response from `tenzro_getBlockRange`.
+///
+/// Each block is a free-form `serde_json::Value` so callers can parse height,
+/// hash, timestamp (millis), proposer, and the rest without committing to a
+/// fixed schema. Use `next_height` and `more_available` to drive pagination:
+///
+/// ```ignore
+/// let mut cur = 0u64;
+/// loop {
+///     let r = client.get_block_range(cur, cur + 255, Some(256)).await?;
+///     for block in &r.blocks { /* ... */ }
+///     if !r.more_available { break; }
+///     cur = r.next_height;
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockRange {
+    /// Returned block summaries (heights between `startHeight` and the
+    /// server-clamped end, inclusive). May be empty when the requested
+    /// window falls inside a pruning gap.
+    #[serde(default)]
+    pub blocks: Vec<serde_json::Value>,
+    /// Height the client should request next. Always advances, even when
+    /// `blocks` is empty (server skips past gaps).
+    #[serde(rename = "nextHeight", default)]
+    pub next_height: u64,
+    /// True if the chain has further blocks beyond `next_height`. Independent
+    /// of the requested `endHeight` so a lagging client knows whether to keep
+    /// paginating.
+    #[serde(rename = "moreAvailable", default)]
+    pub more_available: bool,
+    /// Local node's tip at the time of the call.
+    #[serde(rename = "localTip", default)]
+    pub local_tip: u64,
 }
 
 /// Node status from Web API
