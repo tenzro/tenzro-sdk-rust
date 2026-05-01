@@ -22,6 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ref-mpp-payment-agent-v1",
         Some("MPP Example"),
         None,
+        None,
     ).await?;
 
     let agent_id = &spawn.agent_id;

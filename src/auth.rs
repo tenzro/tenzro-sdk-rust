@@ -209,6 +209,76 @@ impl AuthClient {
         });
         self.rpc.call("tenzro_decideApproval", params).await
     }
+
+    /// **RFC 8693 OAuth 2.0 Token Exchange.** Exchange a parent JWT for a
+    /// narrower child JWT bound to a different DPoP key, with a strictly
+    /// subset of the parent's RAR grants and AAP capabilities. The child
+    /// token's `controller_did` is set to the parent's `sub`, extending
+    /// the act-chain by one hop.
+    ///
+    /// Subset enforcement is performed by the AS — `requested_rar` and
+    /// `requested_aap_capabilities` must be a strict subset of what the
+    /// parent already holds. Anything outside the parent's authority is
+    /// rejected with JSON-RPC error code `-32002`.
+    ///
+    /// # Arguments
+    ///
+    /// * `subject_token` — the parent JWT (validated for signature, exp,
+    ///   and revocation by the AS).
+    /// * `child_bearer_did` — DID that will be the `sub` of the child JWT.
+    /// * `child_dpop_jkt` — RFC 7638 JWK thumbprint of the child holder's
+    ///   Ed25519 public key. The child token will be DPoP-bound to it.
+    /// * `requested_rar` — typed scope envelope (RFC 9396) the child should
+    ///   carry. Must be a subset of the parent's `authorization_details`.
+    /// * `requested_aap_capabilities` — AAP `aap_capabilities` claim list.
+    ///   Must be a subset of the parent's capabilities.
+    /// * `requested_ttl_secs` — optional override; clamped to the engine's
+    ///   `max_ttl_secs` and parent's remaining lifetime.
+    pub async fn exchange_token(
+        &self,
+        subject_token: &str,
+        child_bearer_did: &str,
+        child_dpop_jkt: &str,
+        requested_rar: serde_json::Value,
+        requested_aap_capabilities: Vec<serde_json::Value>,
+        requested_ttl_secs: Option<u64>,
+    ) -> SdkResult<TokenExchangeResult> {
+        let mut params = serde_json::json!({
+            "subject_token": subject_token,
+            "child_bearer_did": child_bearer_did,
+            "child_dpop_jkt": child_dpop_jkt,
+            "requested_rar": requested_rar,
+            "requested_aap_capabilities": requested_aap_capabilities,
+        });
+        if let Some(ttl) = requested_ttl_secs {
+            params["requested_ttl_secs"] = serde_json::Value::Number(ttl.into());
+        }
+        self.rpc.call("tenzro_exchangeToken", params).await
+    }
+
+    /// **RFC 7662 OAuth 2.0 Token Introspection.** Ask the AS whether a
+    /// token is currently active and, if so, return its full claim set
+    /// (RAR, AAP, cnf, controller_did, etc.). Per RFC 7662 §2.2 a failed
+    /// validation returns `{"active": false}` with no other fields — the
+    /// AS deliberately does not leak why the token is inactive.
+    ///
+    /// Use this from a downstream resource server that wants to validate
+    /// a bearer token without re-implementing JWT signature checking.
+    pub async fn introspect_token(&self, token: &str) -> SdkResult<IntrospectionResult> {
+        let params = serde_json::json!({ "token": token });
+        self.rpc.call("tenzro_introspectToken", params).await
+    }
+
+    /// **RFC 8414 / RFC 9728 OAuth Authorization Server / Protected
+    /// Resource Metadata.** Returns the same metadata document the AS
+    /// publishes at `GET /.well-known/openid-configuration`. Useful for
+    /// JSON-RPC-only clients (CLI, agents) that don't want to also speak
+    /// HTTP discovery.
+    pub async fn oauth_discovery(&self) -> SdkResult<OAuthDiscovery> {
+        self.rpc
+            .call("tenzro_oauthDiscovery", serde_json::Value::Null)
+            .await
+    }
 }
 
 /// One of the three onboarding RPCs (or `link_wallet_for_auth`) returns
@@ -296,4 +366,84 @@ pub struct ApprovalDecision {
     /// Echo of the approval id.
     #[serde(default)]
     pub approval_id: String,
+}
+
+/// Result of [`AuthClient::exchange_token`] — the issued child JWT and
+/// its delegation envelope per RFC 8693 §2.2.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenExchangeResult {
+    /// The newly-issued child JWT (HS256, DPoP-bound to `child_dpop_jkt`).
+    pub access_token: String,
+    /// Lifetime of the child token in seconds.
+    pub expires_in: u64,
+    /// Always `"DPoP"` — child tokens are always DPoP-bound (RFC 9449).
+    pub token_type: String,
+    /// Always `"urn:ietf:params:oauth:token-type:jwt"` — the format of
+    /// the issued token (RFC 8693 §2.2).
+    pub issued_token_type: String,
+    /// Echo of the delegation envelope: `{ controller_did, depth, … }`.
+    /// The exact shape is defined by `tenzro_auth::TokenExchangeOutcome`
+    /// — kept as opaque JSON in the SDK to avoid recapitulating every
+    /// AAP claim type.
+    pub delegation: serde_json::Value,
+}
+
+/// Result of [`AuthClient::introspect_token`] — the RFC 7662 §2.2
+/// introspection response. When `active` is `false`, all other fields
+/// are absent (the AS does not leak why the token is inactive).
+///
+/// The full claim set (RAR `authorization_details`, AAP `aap_*` claims,
+/// `cnf`, `controller_did`, etc.) is returned as opaque JSON to keep
+/// the SDK decoupled from `tenzro-auth` internals — callers that need
+/// typed access can deserialize the `claims` map themselves.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntrospectionResult {
+    /// `true` iff the token validates and its controller chain is not
+    /// revoked.
+    pub active: bool,
+    /// Full claim set when active; empty when inactive. Includes
+    /// `sub`, `iss`, `aud`, `iat`, `nbf`, `exp`, `jti`, `cnf`,
+    /// `controller_did`, `authorization_details`, and any present
+    /// `aap_*` claims.
+    #[serde(flatten)]
+    pub claims: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Result of [`AuthClient::oauth_discovery`] — the OAuth 2.0
+/// authorization-server metadata document (RFC 8414) augmented with
+/// the AAP-specific extensions.
+///
+/// Mirrors the document published at
+/// `GET /.well-known/openid-configuration` on the AS.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthDiscovery {
+    /// Issuer DID — typically `did:tenzro:node:<node_id>`.
+    pub issuer: String,
+    /// `POST` endpoint for authorization-code, refresh-token, and
+    /// token-exchange grants.
+    pub token_endpoint: String,
+    /// `POST` endpoint for RFC 7662 token introspection.
+    pub introspection_endpoint: String,
+    /// `POST` endpoint for RFC 7009 token revocation.
+    pub revocation_endpoint: String,
+    /// All grant types the AS accepts. Includes
+    /// `urn:ietf:params:oauth:grant-type:token-exchange`,
+    /// `authorization_code`, and `refresh_token`.
+    pub grant_types_supported: Vec<String>,
+    /// Authentication methods at the token endpoint
+    /// (`"none"` for public clients, `"private_key_jwt"`).
+    pub token_endpoint_auth_methods_supported: Vec<String>,
+    /// Authorization-code response types — currently `["code"]`.
+    pub response_types_supported: Vec<String>,
+    /// DPoP signing algorithms accepted on proofs — currently
+    /// `["EdDSA"]` (Ed25519 per RFC 8037).
+    pub dpop_signing_alg_values_supported: Vec<String>,
+    /// RFC 9396 RAR `type` values the AS recognises:
+    /// `transfer`, `create_escrow`, `discharge_escrow`, `inference`,
+    /// `stake`, `vote`, `contract`, `register_identity`.
+    pub authorization_details_types_supported: Vec<String>,
+    /// AAP claim names the AS issues — `aap_agent`, `aap_task`,
+    /// `aap_capabilities`, `aap_oversight`, `aap_delegation`,
+    /// `aap_context`, `aap_audit`.
+    pub aap_claims_supported: Vec<String>,
 }

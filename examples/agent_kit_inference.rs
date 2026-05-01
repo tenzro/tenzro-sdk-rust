@@ -21,6 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ref-model-inference-proxy-v1",
         Some("Inference Example"),
         None,
+        None,
     ).await?;
 
     let agent_id = &spawn.agent_id;

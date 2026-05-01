@@ -295,11 +295,24 @@ impl Ap2Client {
     /// Validates an AP2 Intent+Cart mandate pair for consistency
     ///
     /// Ensures the cart references the intent, amounts/items match the intent's
-    /// constraints, and both VDCs verify.
+    /// constraints, and both VDCs verify. When `enforce_delegation` is true,
+    /// additionally cross-checks the agent's TDIP `DelegationScope` against
+    /// the cart total via `IdentityRegistry::enforce_operation(agent_did,
+    /// "payment", total)`. This is the AP2 + TDIP gate: AP2 authorizes the
+    /// principal-signed mandate; TDIP authorizes the agent's broader
+    /// operating envelope. Both must admit the cart.
+    ///
+    /// # Arguments
+    ///
+    /// * `intent_vdc` - The principal-signed IntentMandate VDC.
+    /// * `cart_vdc` - The agent-signed CartMandate VDC.
+    /// * `enforce_delegation` - If true, run the TDIP delegation gate after
+    ///   AP2 validation succeeds. Pass `false` for AP2-only validation.
     pub async fn validate_mandate_pair(
         &self,
         intent_vdc: serde_json::Value,
         cart_vdc: serde_json::Value,
+        enforce_delegation: bool,
     ) -> SdkResult<Ap2MandatePairValidation> {
         self.rpc
             .call(
@@ -307,6 +320,7 @@ impl Ap2Client {
                 serde_json::json!([{
                     "intent_vdc": intent_vdc,
                     "cart_vdc": cart_vdc,
+                    "enforce_delegation": enforce_delegation,
                 }]),
             )
             .await
@@ -412,12 +426,22 @@ pub struct Ap2MandatePairValidation {
     /// Whether the pair is mutually consistent and both VDCs verify
     #[serde(default)]
     pub valid: bool,
-    /// Verification result for the intent mandate
+    /// Mandate id of the intent VDC (set on success)
     #[serde(default)]
-    pub intent: Option<Ap2MandateVerification>,
-    /// Verification result for the cart mandate
+    pub intent_mandate_id: Option<String>,
+    /// Mandate id of the cart VDC (set on success)
     #[serde(default)]
-    pub cart: Option<Ap2MandateVerification>,
+    pub cart_mandate_id: Option<String>,
+    /// Principal DID (intent signer, set on success)
+    #[serde(default)]
+    pub principal_did: Option<String>,
+    /// Agent DID (cart signer, set on success)
+    #[serde(default)]
+    pub agent_did: Option<String>,
+    /// Whether the TDIP delegation gate ran in addition to AP2 validation.
+    /// Mirrors the `enforce_delegation` request flag.
+    #[serde(default)]
+    pub delegation_enforced: bool,
     /// Reason for failure if `valid` is false
     #[serde(default)]
     pub error: Option<String>,

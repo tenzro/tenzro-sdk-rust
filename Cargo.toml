@@ -26,6 +26,7 @@ futures = "0.3"
 hex = "0.4"
 uuid = { version = "1", features = ["v4"] }
 tracing = "0.1"
+base64 = "0.22"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"

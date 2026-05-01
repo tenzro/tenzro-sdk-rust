@@ -162,16 +162,26 @@ impl MarketplaceClient {
             .await
     }
 
-    /// Spawns a new agent instance from a marketplace template
+    /// Spawns a new agent instance from a marketplace template.
+    ///
+    /// When `parent_machine_did` is `Some`, the spawned agent's effective
+    /// delegation scope is the strict intersection of the parent's scope
+    /// and the template's spec — the child can never be broader than its
+    /// parent on any axis (numeric ceilings, allow-lists, time bound).
     pub async fn spawn_agent_from_template(
         &self,
         template_id: &str,
         name: &str,
+        parent_machine_did: Option<&str>,
     ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_spawnAgentFromTemplate",
-                serde_json::json!([{ "template_id": template_id, "name": name }]),
+                serde_json::json!([{
+                    "template_id": template_id,
+                    "name": name,
+                    "parent_machine_did": parent_machine_did,
+                }]),
             )
             .await
     }

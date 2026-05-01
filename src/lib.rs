@@ -125,7 +125,8 @@ pub use app::{
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;
 pub use auth::{
-    ApprovalDecision, AuthClient, OnboardSession, PendingApprovals, RevokeResponse,
+    ApprovalDecision, AuthClient, IntrospectionResult, OAuthDiscovery, OnboardSession,
+    PendingApprovals, RefreshedToken, RevokeResponse, TokenExchangeResult,
 };
 pub use ap2::{
     Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
@@ -157,7 +158,10 @@ pub use inference::InferenceClient;
 pub use marketplace::MarketplaceClient;
 pub use nanopayment::NanopaymentClient;
 pub use nft::{CollectionInfo, MintResult, NftClient, NftInfo, NftTransferResult, PointerResult};
-pub use payment::{GatewayInfo, PaymentChallenge, PaymentClient, PaymentReceipt, PaymentSession};
+pub use payment::{
+    GatewayInfo, PaymentChallenge, PaymentClient, PaymentReceipt, PaymentSession,
+    X402SchemeDescriptor, X402SchemeRegistry,
+};
 pub use provider::{
     ChatMessage, ChatResponse, DownloadProgress, HardwareProfile, ModelEndpoint, ModelLoad,
     ParticipateResponse, ProviderClient, ProviderStats,

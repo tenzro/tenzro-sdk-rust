@@ -337,6 +337,37 @@ impl PaymentClient {
             .call("tenzro_paymentGatewayInfo", serde_json::json!([]))
             .await
     }
+
+    /// Lists the x402 scheme backends registered on the connected node.
+    ///
+    /// Each scheme corresponds to a different verification path under the x402
+    /// protocol: `tenzro-hybrid` (Ed25519 hybrid signature over the canonical
+    /// preimage), `exact-eip3009` (USDC EIP-3009 meta-transaction via the CDP
+    /// facilitator), `permit2` (Uniswap Permit2 via the CDP facilitator), and
+    /// `erc7710` (delegation redemption). Use the returned ids in the
+    /// `extra.scheme` field of an x402 PaymentRequirement.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let config = SdkConfig::testnet();
+    /// # let client = TenzroClient::connect(config).await?;
+    /// let payment = client.payment();
+    /// let registry = payment.list_x402_schemes().await?;
+    /// for scheme in &registry.schemes {
+    ///     println!("{}: {}", scheme.id, scheme.description);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_x402_schemes(&self) -> SdkResult<X402SchemeRegistry> {
+        self.rpc
+            .call("tenzro_listX402Schemes", serde_json::json!([]))
+            .await
+    }
 }
 
 /// A payment challenge (402 response)
@@ -431,4 +462,33 @@ pub struct GatewayInfo {
     /// Supported assets
     #[serde(default)]
     pub supported_assets: Vec<String>,
+}
+
+/// Description of a single x402 scheme backend registered on the node.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct X402SchemeDescriptor {
+    /// Scheme id (e.g. `tenzro-hybrid`, `exact-eip3009`, `permit2`, `erc7710`).
+    /// Used as the value of `extra.scheme` in an x402 PaymentRequirement.
+    #[serde(default)]
+    pub id: String,
+    /// Human-readable description of the scheme's verification path.
+    #[serde(default)]
+    pub description: String,
+}
+
+/// Snapshot of the x402 scheme registry currently wired into the node.
+///
+/// Returned by [`PaymentClient::list_x402_schemes`]. The `default` field is
+/// the scheme used when no `extra.scheme` is set on the PaymentRequirement.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct X402SchemeRegistry {
+    /// Default scheme id when `extra.scheme` is absent.
+    #[serde(default)]
+    pub default: String,
+    /// All schemes registered on this node.
+    #[serde(default)]
+    pub schemes: Vec<X402SchemeDescriptor>,
+    /// Total number of registered schemes.
+    #[serde(default)]
+    pub count: usize,
 }

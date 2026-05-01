@@ -185,12 +185,18 @@ impl AgentClient {
             .await
     }
 
-    /// Spawns an agent from a marketplace template
+    /// Spawns an agent from a marketplace template.
+    ///
+    /// When `parent_machine_did` is `Some`, the spawned agent's effective
+    /// delegation scope is the strict intersection of the parent's scope
+    /// and the template's spec — the child can never be broader than its
+    /// parent on any axis (numeric ceilings, allow-lists, time bound).
     pub async fn spawn_agent_template(
         &self,
         template_id: &str,
         display_name: Option<&str>,
         context: Option<&str>,
+        parent_machine_did: Option<&str>,
     ) -> SdkResult<SpawnAgentTemplateResponse> {
         self.rpc
             .call(
@@ -199,6 +205,7 @@ impl AgentClient {
                     "template_id": template_id,
                     "display_name": display_name,
                     "context": context,
+                    "parent_machine_did": parent_machine_did,
                 }]),
             )
             .await

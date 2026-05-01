@@ -130,22 +130,7 @@ impl RpcClient {
 
     /// Makes an HTTP GET request to the Web API (non-RPC)
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> SdkResult<T> {
-        let base = self.endpoint.trim_end_matches('/');
-        // Derive web API base from RPC endpoint
-        // RPC is on :8545, Web API is on :8080
-        // For remote endpoints, use api.tenzro.network instead of rpc.tenzro.network
-        let url = if base.contains("rpc.tenzro.network") {
-            format!(
-                "{}{}",
-                base.replace("rpc.tenzro.network", "api.tenzro.network"),
-                path
-            )
-        } else if base.contains("localhost:8545") || base.contains("127.0.0.1:8545") {
-            format!("{}{}", base.replace("8545", "8080"), path)
-        } else {
-            format!("{}{}", base, path)
-        };
-
+        let url = self.web_api_url(path);
         let response = self.http.get(&url).send().await.map_err(|e| {
             if e.is_timeout() {
                 SdkError::Timeout
@@ -174,19 +159,7 @@ impl RpcClient {
         path: &str,
         body: &B,
     ) -> SdkResult<T> {
-        let base = self.endpoint.trim_end_matches('/');
-        let url = if base.contains("rpc.tenzro.network") {
-            format!(
-                "{}{}",
-                base.replace("rpc.tenzro.network", "api.tenzro.network"),
-                path
-            )
-        } else if base.contains("localhost:8545") || base.contains("127.0.0.1:8545") {
-            format!("{}{}", base.replace("8545", "8080"), path)
-        } else {
-            format!("{}{}", base, path)
-        };
-
+        let url = self.web_api_url(path);
         let response = self
             .http
             .post(&url)
@@ -213,6 +186,109 @@ impl RpcClient {
             .json()
             .await
             .map_err(|e| SdkError::RpcError(format!("Failed to parse response: {}", e)))
+    }
+
+    /// Makes an authenticated HTTP POST to the Web API with caller-supplied
+    /// DPoP-bound JWT and DPoP proof headers (RFC 9449).
+    ///
+    /// Unlike the JSON-RPC `call()` path, web-API endpoints in the
+    /// `/wallet/*` family require a fresh DPoP proof per request that
+    /// signs over the exact `(method, htu)` pair. Because the caller
+    /// (wallet kernel) is the only party who can produce that proof,
+    /// the SDK cannot infer it from environment ambient state — it
+    /// must be passed in.
+    pub async fn post_with_auth<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+        bearer_jwt: &str,
+        dpop_proof: &str,
+    ) -> SdkResult<T> {
+        let url = self.web_api_url(path);
+        let response = self
+            .http
+            .post(&url)
+            .header("Authorization", format!("DPoP {}", bearer_jwt))
+            .header("DPoP", dpop_proof)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    SdkError::Timeout
+                } else {
+                    SdkError::ConnectionError(e.to_string())
+                }
+            })?;
+
+        if !response.status().is_success() {
+            return Err(SdkError::RpcError(format!(
+                "HTTP {}: {}",
+                response.status(),
+                response.status().canonical_reason().unwrap_or("Unknown")
+            )));
+        }
+        response
+            .json()
+            .await
+            .map_err(|e| SdkError::RpcError(format!("Failed to parse response: {}", e)))
+    }
+
+    /// Authenticated counterpart to [`Self::get`] — see
+    /// [`Self::post_with_auth`] for the rationale.
+    pub async fn get_with_auth<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        bearer_jwt: &str,
+        dpop_proof: &str,
+    ) -> SdkResult<T> {
+        let url = self.web_api_url(path);
+        let response = self
+            .http
+            .get(&url)
+            .header("Authorization", format!("DPoP {}", bearer_jwt))
+            .header("DPoP", dpop_proof)
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    SdkError::Timeout
+                } else {
+                    SdkError::ConnectionError(e.to_string())
+                }
+            })?;
+
+        if !response.status().is_success() {
+            return Err(SdkError::RpcError(format!(
+                "HTTP {}: {}",
+                response.status(),
+                response.status().canonical_reason().unwrap_or("Unknown")
+            )));
+        }
+        response
+            .json()
+            .await
+            .map_err(|e| SdkError::RpcError(format!("Failed to parse response: {}", e)))
+    }
+
+    /// Build the Web API base URL by mapping the configured RPC
+    /// endpoint to its sibling Web API host (rpc → api, :8545 → :8080).
+    /// The mapping mirrors the production deploy where
+    /// `rpc.tenzro.network` and `api.tenzro.network` are sibling
+    /// subdomains served by the same node.
+    pub fn web_api_url(&self, path: &str) -> String {
+        let base = self.endpoint.trim_end_matches('/');
+        if base.contains("rpc.tenzro.network") {
+            format!(
+                "{}{}",
+                base.replace("rpc.tenzro.network", "api.tenzro.network"),
+                path
+            )
+        } else if base.contains("localhost:8545") || base.contains("127.0.0.1:8545") {
+            format!("{}{}", base.replace("8545", "8080"), path)
+        } else {
+            format!("{}{}", base, path)
+        }
     }
 
     /// Returns the RPC endpoint URL

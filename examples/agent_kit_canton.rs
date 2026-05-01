@@ -21,6 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ref-canton-trade-settler-v1",
         Some("Canton Example"),
         None,
+        None,
     ).await?;
 
     let agent_id = &spawn.agent_id;

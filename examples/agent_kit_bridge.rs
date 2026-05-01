@@ -21,6 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ref-bridge-arbitrage-scanner-v1",
         Some("Bridge Arb Example"),
         None,
+        None,
     ).await?;
 
     let agent_id = &spawn.agent_id;

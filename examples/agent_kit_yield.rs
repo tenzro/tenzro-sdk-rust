@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ref-yield-rebalancer-v1",
         Some("SDK Example User"),
         None,
+        None,
     ).await?;
 
     let agent_id = &spawn_result.agent_id;
