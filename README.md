@@ -63,7 +63,7 @@ loop {
 peer-reported network tips (gossiped on `tenzro/status/1.0.0`); pair it with
 `get_block_range` to drive a catch-up loop only when needed.
 
-## Modules (41)
+## Modules (42)
 
 | Module | Description |
 |--------|-------------|
@@ -104,6 +104,7 @@ peer-reported network tips (gossiped on `tenzro/status/1.0.0`); pair it with
 | `circuit_breaker` | Provider health management |
 | `nanopayment` | Micropayment channels |
 | `erc7802` | Cross-chain token mint/burn |
+| `svm_cross_vm` | Tenzro Cross-VM SVM-native program: program ID + 4 instruction encoders (`bridge_to_evm`, `bridge_from_evm`, `register_token_pointer`, `transfer_cross_vm`) |
 | `types` | Core types (Address, ModelInfo, etc.) |
 | `config` | SDK configuration |
 | `rpc` | JSON-RPC client |

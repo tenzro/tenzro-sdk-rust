@@ -197,6 +197,53 @@ impl TenzroClient {
         parse_hex_u64(&hex)
     }
 
+    /// Returns the current effective gas price in wei (base fee + suggested
+    /// priority tip). Tracks the EIP-1559 fee market — value adjusts ±12.5%
+    /// per block based on parent gas usage vs. the 15M target.
+    pub async fn gas_price(&self) -> SdkResult<u128> {
+        let hex: String = self
+            .rpc
+            .call("eth_gasPrice", serde_json::json!([]))
+            .await?;
+        parse_hex_u128(&hex)
+    }
+
+    /// Returns a suggested EIP-1559 priority fee (tip) in wei. Use this to
+    /// fill `maxPriorityFeePerGas` on a Type-2 transaction; derive the base-fee
+    /// portion from `fee_history` or the parent block's `base_fee_per_gas`.
+    pub async fn max_priority_fee_per_gas(&self) -> SdkResult<u128> {
+        let hex: String = self
+            .rpc
+            .call("eth_maxPriorityFeePerGas", serde_json::json!([]))
+            .await?;
+        parse_hex_u128(&hex)
+    }
+
+    /// Returns base-fee history and gas-usage ratios for the last `block_count`
+    /// blocks. `newest_block` is a hex height or `"latest"`. `reward_percentiles`
+    /// requests per-block tip percentiles (e.g. `[25.0, 50.0, 75.0]`); pass
+    /// `None` to omit. `base_fee_per_gas` returns `block_count + 1` entries —
+    /// the last is the predicted base fee for the next block. Used by wallets
+    /// to model `maxFeePerGas` and `maxPriorityFeePerGas`.
+    pub async fn fee_history(
+        &self,
+        block_count: u64,
+        newest_block: &str,
+        reward_percentiles: Option<&[f64]>,
+    ) -> SdkResult<FeeHistory> {
+        let percentiles = reward_percentiles
+            .map(|p| serde_json::json!(p))
+            .unwrap_or(serde_json::json!([]));
+        let history: FeeHistory = self
+            .rpc
+            .call(
+                "eth_feeHistory",
+                serde_json::json!([format!("0x{:x}", block_count), newest_block, percentiles]),
+            )
+            .await?;
+        Ok(history)
+    }
+
     /// Submits a raw transaction
     pub async fn send_transaction(
         &self,
@@ -545,6 +592,10 @@ pub struct BlockInfo {
     /// Gas limit
     #[serde(default)]
     pub gas_limit: u64,
+    /// EIP-1559 base fee per gas in wei (hex-encoded). `None` for pre-fee-market
+    /// blocks. Use `eth_feeHistory` for time-series base-fee modeling.
+    #[serde(default, rename = "base_fee_per_gas")]
+    pub base_fee_per_gas: Option<String>,
 }
 
 /// Paginated block range response from `tenzro_getBlockRange`.
@@ -581,6 +632,30 @@ pub struct BlockRange {
     /// Local node's tip at the time of the call.
     #[serde(rename = "localTip", default)]
     pub local_tip: u64,
+}
+
+/// EIP-1559 fee-history payload from `eth_feeHistory`.
+///
+/// `base_fee_per_gas` has length `block_count + 1` — the trailing entry is the
+/// predicted base fee for the next block, suitable as the floor of a Type-2
+/// transaction's `maxFeePerGas`. `reward[i][j]` is the `j`-th requested
+/// percentile of priority tips paid in block `oldest_block + i` (empty when no
+/// percentiles were requested).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeeHistory {
+    /// Lowest block height covered by this response (hex-encoded).
+    #[serde(rename = "oldestBlock", default)]
+    pub oldest_block: String,
+    /// Per-block base fees in wei (hex-encoded). Length = `block_count + 1`.
+    #[serde(rename = "baseFeePerGas", default)]
+    pub base_fee_per_gas: Vec<String>,
+    /// Per-block `gas_used / gas_limit` ratio.
+    #[serde(rename = "gasUsedRatio", default)]
+    pub gas_used_ratio: Vec<f64>,
+    /// Per-block tip percentiles (wei, hex-encoded). Empty when
+    /// `reward_percentiles` was `None`.
+    #[serde(default)]
+    pub reward: Option<Vec<Vec<String>>>,
 }
 
 /// Node status from Web API

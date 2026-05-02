@@ -98,6 +98,7 @@ pub mod settlement;
 pub mod skill;
 pub mod staking;
 pub mod streaming;
+pub mod svm_cross_vm;
 pub mod task;
 pub mod tee;
 pub mod token;
@@ -115,6 +116,14 @@ pub use rpc::RpcClient;
 
 // Re-export core types
 pub use types::{Address, AgentIdentity, AgentTemplate, ModelInfo, TaskInfo, TaskQuote};
+
+// Re-export SVM Cross-VM constants and instruction builders
+pub use svm_cross_vm::{
+    PROGRAM_ID_DERIVATION_DOMAIN, TENZRO_CROSS_VM_PROGRAM_ID,
+    TENZRO_CROSS_VM_PROGRAM_ID_BASE58, TENZRO_CROSS_VM_PROGRAM_ID_HEX,
+    encode_bridge_from_evm, encode_bridge_to_evm, encode_register_token_pointer,
+    encode_transfer_cross_vm,
+};
 
 // Re-export client modules
 pub use app::{
