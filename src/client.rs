@@ -513,7 +513,14 @@ impl TenzroClient {
         self.rpc.endpoint()
     }
 
-    /// Gets a transaction by hash
+    /// Gets a transaction by hash.
+    ///
+    /// Resolves from finalized storage first, then falls back to the consensus
+    /// mempool. The returned object's `status` field is `"pending"` while the
+    /// transaction is in-mempool and `"finalized"` once it has been included in
+    /// a block — callers polling immediately after broadcast can therefore
+    /// distinguish "not yet finalized" from "unknown hash" (the RPC returns
+    /// `null` only when the hash is unknown to both storage and mempool).
     pub async fn get_transaction(&self, hash: &str) -> SdkResult<serde_json::Value> {
         self.rpc.call("tenzro_getTransaction", serde_json::json!([hash])).await
     }

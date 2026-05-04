@@ -37,9 +37,14 @@ impl WalletClient {
         Self { rpc }
     }
 
-    /// Creates a new MPC wallet
+    /// Creates a new chain-agnostic 2-of-3 Ed25519 MPC wallet.
     ///
-    /// Returns wallet info including the address and public key.
+    /// Tenzro wallets are chain-agnostic by design — a single wallet projects
+    /// into EVM, SVM, and Canton via the pointer-token model, so there is no
+    /// per-chain parameter. Use `cross_vm_transfer` / `wrap_tnzo` for
+    /// VM-specific operations and the bridge clients (LayerZero V2, Chainlink
+    /// CCIP, deBridge, Wormhole NTT) for sends to external chains. Returns
+    /// wallet info including the canonical Tenzro address and public key.
     pub async fn create_wallet(&self) -> SdkResult<WalletInfo> {
         self.rpc
             .call("tenzro_createWallet", serde_json::json!([]))

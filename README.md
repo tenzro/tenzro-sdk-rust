@@ -174,9 +174,12 @@ resolves the signer from the DPoP-bound bearer JWT (`TENZRO_BEARER_JWT`)
 and signs against the holder's MPC wallet. Two supported flows:
 
 1. **Atomic server-side sign + send (recommended).** With ambient auth
-   configured, the SDK forwards the bearer + DPoP proof; the node assembles,
-   hashes, signs against the MPC wallet bound to the JWT, verifies, and
-   submits — all in one call.
+   configured, the SDK forwards the bearer + DPoP proof; the node looks up
+   the live nonce and gas price, assembles, hashes, signs against the MPC
+   wallet bound to the JWT, verifies, and submits — all in one call. `nonce`,
+   `chain_id`, and `gas_price` are optional; `value` accepts the alias
+   `amount` for parity with the desktop and CLI clients. Self-sends
+   (`from == to`) return a `cannot transfer to self` validation error.
 
    ```rust
    let tx_hash: String = client
@@ -184,9 +187,8 @@ and signs against the holder's MPC wallet. Two supported flows:
        .call("tenzro_signAndSendTransaction", serde_json::json!([{
            "from": "0x...",
            "to": "0x...",
-           "value": "0x...",
-           "nonce": "0x0",
-           "chain_id": 1337,
+           "value": "0x..."
+           // nonce, chain_id, gas_price all optional — looked up live
        }]))
        .await?;
    ```
@@ -196,6 +198,23 @@ and signs against the holder's MPC wallet. Two supported flows:
    `public_key`, and explicit `timestamp` matching a client-computed
    `Transaction::hash()`. The signer must still match a holder identity
    visible to the node.
+
+## Wallet model
+
+`client.wallet().create_wallet()` provisions a chain-agnostic 2-of-3 Ed25519
+MPC wallet. Tenzro wallets are not per-chain — a single wallet projects into
+EVM, SVM, and Canton via the pointer-token model, so there is no `chain`
+parameter. VM-specific operations are exposed through `client.token()`
+(`cross_vm_transfer`, `wrap_tnzo`); transfers to external chains use
+`client.bridge()` (LayerZero V2, Chainlink CCIP), `client.debridge()`,
+`client.wormhole()`, or `client.lifi()`.
+
+`client.get_transaction(hash)` resolves from finalized storage first, then
+falls back to the consensus mempool — `status` is `"pending"` while the
+transaction is in-mempool and `"finalized"` once block-included, so callers
+polling immediately after broadcast can distinguish "not yet finalized" from
+"unknown hash" (the call returns `null` only when the hash is unknown to
+both storage and mempool).
 
 ## Durable state
 
