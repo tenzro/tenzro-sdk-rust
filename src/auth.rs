@@ -183,6 +183,19 @@ impl AuthClient {
         self.rpc.call("tenzro_revokeDid", params).await
     }
 
+    /// TDIP/GDPR Article 17 right-to-erasure. Hard-deletes a previously
+    /// revoked identity from the registry and persistent storage.
+    ///
+    /// The identity MUST already be `Revoked` — call [`revoke_did`] first,
+    /// allow the cascading revocation broadcaster to propagate, and then
+    /// call this. Distinct from [`revoke_did`] which is a logical delete.
+    ///
+    /// Returns the erased DID and confirmation status.
+    pub async fn forget_identity(&self, did: &str) -> SdkResult<serde_json::Value> {
+        let params = serde_json::json!({ "did": did });
+        self.rpc.call("tenzro_forgetIdentity", params).await
+    }
+
     /// List approvals in `Pending` status for the given approver DID.
     /// Returns the records the approver should review and decide on.
     pub async fn list_pending_approvals(

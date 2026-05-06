@@ -10,7 +10,8 @@ use crate::{
     agent::AgentClient, agent_payments::AgentPaymentClient, ap2::Ap2Client,
     auth::AuthClient,
     bridge::BridgeClient, canton::CantonClient, circuit_breaker::CircuitBreakerClient,
-    compliance::ComplianceClient, contract::ContractClient, crypto::CryptoClient,
+    compliance::ComplianceClient, contract::ContractClient, cortex::CortexClient,
+    crypto::CryptoClient,
     custody::CustodyClient, debridge::DebridgeClient, erc7802::Erc7802Client,
     events::EventClient, governance::GovernanceClient, identity::IdentityClient,
     inference::InferenceClient, marketplace::MarketplaceClient, nanopayment::NanopaymentClient,
@@ -332,6 +333,16 @@ impl TenzroClient {
     /// Creates an inference client for AI model inference
     pub fn inference(&self) -> InferenceClient {
         InferenceClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Cortex client for recurrent-depth reasoning operations.
+    ///
+    /// Cortex treats recurrent-loop depth as a first-class billable primitive.
+    /// Use this to submit reasoning requests with explicit budget envelopes
+    /// (Fast / Standard / Deep / Institutional tiers) and receive signed
+    /// receipts binding inputs, outputs, and worker identity.
+    pub fn cortex(&self) -> CortexClient {
+        CortexClient::new(self.rpc.clone())
     }
 
     /// Creates a settlement client for payment settlement

@@ -60,7 +60,7 @@ loop {
 ```
 
 `client.syncing()` reports the live gap by comparing the local tip against
-peer-reported network tips (gossiped on `tenzro/status/1.0.0`); pair it with
+peer-reported network tips (gossiped on `tenzro/status`); pair it with
 `get_block_range` to drive a catch-up loop only when needed.
 
 ## Modules (42)
@@ -269,6 +269,16 @@ cargo run --example agent_marketplace
 cargo run --example governance
 cargo run --example settlement
 cargo run --example complete_example
+cargo run --example auth_session
+cargo run --example cortex_reasoning
+cargo run --example agent_kit_inference
+cargo run --example agent_kit_mpp
+cargo run --example agent_kit_yield
+cargo run --example agent_kit_bridge
+cargo run --example agent_kit_canton
+cargo run --example defi_solana_swap
+cargo run --example defi_base_yield
+cargo run --example defi_canton_dvp
 ```
 
 See the [examples/](examples/) directory and [Tenzro Cookbook](https://github.com/tenzro/tenzro-cookbook).

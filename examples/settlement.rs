@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Replace the payer address with a wallet you control. The escrow_id is
     // derived deterministically by the VM as
-    // SHA-256("tenzro/escrow/id/v1" || payer || nonce_le); this example shows
+    // SHA-256("tenzro/escrow/id" || payer || nonce_le); this example shows
     // only the resulting transaction hash, since the actual escrow_id is
     // observable via the receipt logs once the tx finalizes.
     //

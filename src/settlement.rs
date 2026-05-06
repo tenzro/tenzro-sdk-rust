@@ -104,7 +104,7 @@ impl SettlementClient {
     /// Creates an on-chain escrow via a signed `CreateEscrow` transaction.
     ///
     /// The escrow_id is derived deterministically by the VM as
-    /// `SHA-256("tenzro/escrow/id/v1" || payer || nonce_le)` and the funds are
+    /// `SHA-256("tenzro/escrow/id" || payer || nonce_le)` and the funds are
     /// transferred to a vault address derived from that escrow_id. Only the
     /// signing payer can later release or refund.
     ///

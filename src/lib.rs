@@ -78,6 +78,7 @@ pub mod client;
 pub mod compliance;
 pub mod config;
 pub mod contract;
+pub mod cortex;
 pub mod crypto;
 pub mod custody;
 pub mod debridge;
@@ -146,6 +147,10 @@ pub use cct::{CctClient, CctPool, CctPoolList};
 pub use circuit_breaker::CircuitBreakerClient;
 pub use compliance::{ComplianceClient, ComplianceResult, ComplianceRules, FreezeResult};
 pub use contract::{CallResult, ContractClient, DeployResult};
+pub use cortex::{
+    AttestationRequirement, CortexClient, CortexMetadata, CortexPricing, CortexReceipt,
+    CortexRequest, CortexResponse, CortexWorkerEntry, CortexWorkerList, ReasoningTier,
+};
 pub use crypto::{
     CryptoClient, DecryptResult, DerivedKey, EncryptResult, KeyPair, SharedSecret, SignatureResult,
     VerifyResult,
@@ -159,7 +164,9 @@ pub use debridge::{
     DebridgeTxData,
 };
 pub use erc7802::Erc7802Client;
-pub use erc8004::{Erc8004Agent, Erc8004AgentId, Erc8004Calldata, Erc8004Client};
+pub use erc8004::{
+    Erc8004Agent, Erc8004AgentId, Erc8004Calldata, Erc8004Client, Erc8004Metadata,
+};
 pub use events::{Event, EventClient, Subscription, WebhookRegistration};
 pub use governance::{GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower};
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};

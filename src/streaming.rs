@@ -124,12 +124,12 @@ impl StreamingClient {
                     if data == "[DONE]" {
                         continue;
                     }
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                        if let Some(content) = parsed["choices"][0]["delta"]["content"].as_str() {
-                            total_tokens += 1;
-                            output.push_str(content);
-                            on_token(content);
-                        }
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data)
+                        && let Some(content) = parsed["choices"][0]["delta"]["content"].as_str()
+                    {
+                        total_tokens += 1;
+                        output.push_str(content);
+                        on_token(content);
                     }
                 }
             }
@@ -190,14 +190,12 @@ impl StreamingClient {
                         if data == "[DONE]" {
                             continue;
                         }
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                            if let Some(content) =
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data)
+                            && let Some(content) =
                                 parsed["choices"][0]["delta"]["content"].as_str()
-                            {
-                                if tx.send(content.to_string()).await.is_err() {
-                                    return;
-                                }
-                            }
+                            && tx.send(content.to_string()).await.is_err()
+                        {
+                            return;
                         }
                     }
                 }

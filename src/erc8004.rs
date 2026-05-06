@@ -1,12 +1,18 @@
-//! ERC-8004 Trustless Agents Registry SDK for Tenzro Network
+//! ERC-8004 Trustless Agents Registry SDK for Tenzro Network.
 //!
-//! This module provides client-side helpers for the three ERC-8004 registries
-//! — IdentityRegistry, ReputationRegistry, and ValidationRegistry — enabling
-//! on-chain agent discovery, feedback, and validation on any EVM chain.
+//! Client-side helpers for the three ERC-8004 registries —
+//! IdentityRegistry, ReputationRegistry, and ValidationRegistry —
+//! covering the canonical v0.6+ surface (mutators + reads) so the SDK
+//! is at parity with the node's RPC layer and the EVM precompile at
+//! `0x101a` / `0x101b` / `0x101c`.
 //!
-//! All encode methods return hex calldata that the caller can sign and
-//! broadcast through any EVM wallet. Decoding helpers round-trip return
-//! data from `eth_call` into typed structs.
+//! All `encode_*` methods return hex calldata that the caller can sign
+//! and broadcast via `eth_sendRawTransaction`. `decode_*` helpers
+//! round-trip return data from `eth_call` into typed structs.
+//!
+//! Tenzro derives `agentId = keccak256(utf8(did_string))` so the same
+//! calldata works against either the native registry or the Ethereum
+//! mirror.
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;
@@ -24,8 +30,8 @@ use std::sync::Arc;
 /// let client = TenzroClient::new("https://rpc.tenzro.network").await?;
 /// let erc8004 = client.erc8004();
 ///
-/// // Derive a deterministic agent id
-/// let id = erc8004.derive_agent_id("0xowner...", "0x01").await?;
+/// // Derive a deterministic agent id from a Tenzro DID.
+/// let id = erc8004.derive_agent_id("did:tenzro:machine:abc123").await?;
 /// println!("agentId = {}", id.agent_id);
 /// # Ok(())
 /// # }
@@ -41,167 +47,394 @@ impl Erc8004Client {
         Self { rpc }
     }
 
-    /// Derive a deterministic ERC-8004 agent id from owner + salt.
-    ///
-    /// Matches the on-chain `keccak256(abi.encode("TENZRO_ERC8004_AGENT", owner, salt))`
-    /// computation used by IdentityRegistry.
-    pub async fn derive_agent_id(
-        &self,
-        owner: &str,
-        salt: &str,
-    ) -> SdkResult<Erc8004AgentId> {
+    // ---------------------------------------------------------------
+    // Identity registry — base surface
+    // ---------------------------------------------------------------
+
+    /// Derive a canonical ERC-8004 `agentId = keccak256(utf8(did))`.
+    pub async fn derive_agent_id(&self, did: &str) -> SdkResult<Erc8004AgentId> {
         self.rpc
             .call(
                 "tenzro_erc8004DeriveAgentId",
-                serde_json::json!({
-                    "owner": owner,
-                    "salt": salt,
-                }),
+                serde_json::json!({ "did": did }),
             )
             .await
     }
 
-    /// ABI-encode `IdentityRegistry.register(agentId, registrationDataURI, owner)`.
+    /// ABI-encode `IdentityRegistry.registerAgent(bytes32 agentId, address agentAddress, string metadataURI)`.
     pub async fn encode_register(
         &self,
-        agent_id: &str,
-        registration_data_uri: &str,
-        owner: &str,
+        did: &str,
+        agent_address: &str,
+        metadata_uri: &str,
     ) -> SdkResult<Erc8004Calldata> {
         self.rpc
             .call(
                 "tenzro_erc8004EncodeRegister",
                 serde_json::json!({
-                    "agent_id": agent_id,
-                    "registration_data_uri": registration_data_uri,
-                    "owner": owner,
+                    "did": did,
+                    "agent_address": agent_address,
+                    "metadata_uri": metadata_uri,
                 }),
             )
             .await
     }
 
-    /// ABI-encode `IdentityRegistry.getAgent(agentId)`.
+    /// ABI-encode `IdentityRegistry.getAgent(bytes32 agentId)`.
     pub async fn encode_get_agent(&self, agent_id: &str) -> SdkResult<Erc8004Calldata> {
         self.rpc
             .call(
                 "tenzro_erc8004EncodeGetAgent",
-                serde_json::json!({
-                    "agent_id": agent_id,
-                }),
+                serde_json::json!({ "agent_id": agent_id }),
             )
             .await
     }
 
-    /// Decode return data from a `getAgent()` eth_call into typed agent info.
-    pub async fn decode_get_agent(&self, returndata: &str) -> SdkResult<Erc8004Agent> {
+    /// Decode `(address, string)` returndata from `getAgent()` into a typed record.
+    pub async fn decode_get_agent(&self, return_data: &str) -> SdkResult<Erc8004Agent> {
         self.rpc
             .call(
                 "tenzro_erc8004DecodeGetAgent",
+                serde_json::json!({ "return_data": return_data }),
+            )
+            .await
+    }
+
+    // ---------------------------------------------------------------
+    // Identity registry — v0.6+ mutators
+    // ---------------------------------------------------------------
+
+    /// ABI-encode `IdentityRegistry.setAgentURI(uint256 agentId, string metadataURI)`.
+    pub async fn encode_set_agent_uri(
+        &self,
+        agent_id: &str,
+        metadata_uri: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeSetAgentURI",
                 serde_json::json!({
-                    "returndata": returndata,
+                    "agent_id": agent_id,
+                    "metadata_uri": metadata_uri,
                 }),
             )
             .await
     }
 
-    /// ABI-encode `ReputationRegistry.submitFeedback(agentId, score, feedbackAuthId, feedbackURI)`.
-    /// `score` must be 0-100.
-    pub async fn encode_feedback(
+    /// ABI-encode `IdentityRegistry.setAgentWallet(uint256 agentId, address newWallet, uint256 deadline, bytes signature)`.
+    pub async fn encode_set_agent_wallet(
         &self,
         agent_id: &str,
-        score: u8,
-        feedback_auth_id: &str,
-        feedback_uri: &str,
+        new_wallet: &str,
+        deadline: u64,
+        signature: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeSetAgentWallet",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "new_wallet": new_wallet,
+                    "deadline": deadline,
+                    "signature": signature,
+                }),
+            )
+            .await
+    }
+
+    /// ABI-encode `IdentityRegistry.setMetadata(uint256 agentId, string metadataKey, bytes metadataValue)`.
+    pub async fn encode_set_metadata(
+        &self,
+        agent_id: &str,
+        metadata_key: &str,
+        metadata_value: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeSetMetadata",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "metadata_key": metadata_key,
+                    "metadata_value": metadata_value,
+                }),
+            )
+            .await
+    }
+
+    // ---------------------------------------------------------------
+    // Identity registry — v0.6+ reads
+    // ---------------------------------------------------------------
+
+    /// ABI-encode `IdentityRegistry.getMetadata(uint256 agentId, string metadataKey)`.
+    pub async fn encode_get_metadata(
+        &self,
+        agent_id: &str,
+        metadata_key: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetMetadata",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "metadata_key": metadata_key,
+                }),
+            )
+            .await
+    }
+
+    /// Decode `bytes` returndata from `getMetadata()` into hex bytes.
+    pub async fn decode_get_metadata(&self, return_data: &str) -> SdkResult<Erc8004Metadata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004DecodeGetMetadata",
+                serde_json::json!({ "return_data": return_data }),
+            )
+            .await
+    }
+
+    /// ABI-encode `IdentityRegistry.getAgentURI(uint256 agentId)`.
+    pub async fn encode_get_agent_uri(&self, agent_id: &str) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetAgentURI",
+                serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
+
+    /// ABI-encode `IdentityRegistry.getAgentWallet(uint256 agentId)`.
+    pub async fn encode_get_agent_wallet(&self, agent_id: &str) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetAgentWallet",
+                serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
+
+    // ---------------------------------------------------------------
+    // Reputation registry
+    // ---------------------------------------------------------------
+
+    /// ABI-encode `ReputationRegistry.submitFeedback(bytes32 subjectAgentId, int8 rating, string contextURI)`.
+    pub async fn encode_feedback(
+        &self,
+        subject_agent_id: &str,
+        rating: i8,
+        context_uri: &str,
     ) -> SdkResult<Erc8004Calldata> {
         self.rpc
             .call(
                 "tenzro_erc8004EncodeFeedback",
                 serde_json::json!({
-                    "agent_id": agent_id,
-                    "score": score,
-                    "feedback_auth_id": feedback_auth_id,
-                    "feedback_uri": feedback_uri,
+                    "subject_agent_id": subject_agent_id,
+                    "rating": rating,
+                    "context_uri": context_uri,
                 }),
             )
             .await
     }
 
-    /// ABI-encode `ValidationRegistry.requestValidation(agentId, validatorId, requestURI, dataHash)`.
-    pub async fn encode_request_validation(
+    /// ABI-encode `ReputationRegistry.getFeedback(bytes32 subject, uint256 index)`.
+    pub async fn encode_get_feedback(
         &self,
-        agent_id: &str,
-        validator_id: &str,
-        request_uri: &str,
-        data_hash: &str,
+        subject_agent_id: &str,
+        index: u64,
     ) -> SdkResult<Erc8004Calldata> {
         self.rpc
             .call(
-                "tenzro_erc8004EncodeRequestValidation",
+                "tenzro_erc8004EncodeGetFeedback",
                 serde_json::json!({
-                    "agent_id": agent_id,
-                    "validator_id": validator_id,
-                    "request_uri": request_uri,
-                    "data_hash": data_hash,
+                    "subject_agent_id": subject_agent_id,
+                    "index": index,
                 }),
             )
             .await
     }
 
-    /// ABI-encode `ValidationRegistry.submitValidation(dataHash, response, responseURI, tag)`.
-    /// `response` is a 0-100 quality score.
-    pub async fn encode_submit_validation(
+    /// ABI-encode `ReputationRegistry.getFeedbackCount(bytes32 subject)`.
+    pub async fn encode_get_feedback_count(
         &self,
-        data_hash: &str,
+        subject_agent_id: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetFeedbackCount",
+                serde_json::json!({ "subject_agent_id": subject_agent_id }),
+            )
+            .await
+    }
+
+    /// ABI-encode `ReputationRegistry.revokeFeedback(uint256 agentId, bytes32 feedbackId)` (v0.6+).
+    pub async fn encode_revoke_feedback(
+        &self,
+        agent_id: &str,
+        feedback_id: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeRevokeFeedback",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "feedback_id": feedback_id,
+                }),
+            )
+            .await
+    }
+
+    /// ABI-encode `ReputationRegistry.appendResponse(uint256 agentId, bytes32 feedbackId, string responseURI)` (v0.6+).
+    pub async fn encode_append_response(
+        &self,
+        agent_id: &str,
+        feedback_id: &str,
+        response_uri: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeAppendResponse",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "feedback_id": feedback_id,
+                    "response_uri": response_uri,
+                }),
+            )
+            .await
+    }
+
+    /// ABI-encode `ReputationRegistry.isFeedbackRevoked(uint256 agentId, bytes32 feedbackId)` (v0.6+).
+    pub async fn encode_is_feedback_revoked(
+        &self,
+        agent_id: &str,
+        feedback_id: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeIsFeedbackRevoked",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "feedback_id": feedback_id,
+                }),
+            )
+            .await
+    }
+
+    /// ABI-encode `ReputationRegistry.getFeedbackResponses(uint256 agentId, bytes32 feedbackId)` (v0.6+).
+    pub async fn encode_get_feedback_responses(
+        &self,
+        agent_id: &str,
+        feedback_id: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetFeedbackResponses",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "feedback_id": feedback_id,
+                }),
+            )
+            .await
+    }
+
+    // ---------------------------------------------------------------
+    // Validation registry
+    // ---------------------------------------------------------------
+
+    /// ABI-encode `ValidationRegistry.validationRequest(address validatorAddress, uint256 agentId, string requestURI, bytes32 requestHash)`.
+    pub async fn encode_validation_request(
+        &self,
+        validator_address: &str,
+        agent_id: &str,
+        request_uri: &str,
+        request_hash: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeValidationRequest",
+                serde_json::json!({
+                    "validator_address": validator_address,
+                    "agent_id": agent_id,
+                    "request_uri": request_uri,
+                    "request_hash": request_hash,
+                }),
+            )
+            .await
+    }
+
+    /// ABI-encode `ValidationRegistry.validationResponse(bytes32 requestHash, uint8 response, string responseURI, bytes32 responseHash, string tag)`.
+    /// `response` is a 0-100 quality score per ERC-8004.
+    pub async fn encode_validation_response(
+        &self,
+        request_hash: &str,
         response: u8,
         response_uri: &str,
+        response_hash: &str,
         tag: &str,
     ) -> SdkResult<Erc8004Calldata> {
         self.rpc
             .call(
-                "tenzro_erc8004EncodeSubmitValidation",
+                "tenzro_erc8004EncodeValidationResponse",
                 serde_json::json!({
-                    "data_hash": data_hash,
+                    "request_hash": request_hash,
                     "response": response,
                     "response_uri": response_uri,
+                    "response_hash": response_hash,
                     "tag": tag,
                 }),
             )
             .await
     }
+
+    /// ABI-encode `ValidationRegistry.getValidation(bytes32 requestHash)`.
+    pub async fn encode_get_validation(
+        &self,
+        request_hash: &str,
+    ) -> SdkResult<Erc8004Calldata> {
+        self.rpc
+            .call(
+                "tenzro_erc8004EncodeGetValidation",
+                serde_json::json!({ "request_hash": request_hash }),
+            )
+            .await
+    }
 }
 
-/// Deterministic agent id derived from owner + salt.
+/// Deterministic agent id derived from a Tenzro DID.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Erc8004AgentId {
+    /// DID echoed back.
+    #[serde(default)]
+    pub did: String,
     /// 32-byte agent id as 0x-prefixed hex.
     #[serde(default)]
     pub agent_id: String,
-    /// Owner address echoed back.
-    #[serde(default)]
-    pub owner: String,
-    /// Salt used to derive the id.
-    #[serde(default)]
-    pub salt: String,
 }
 
-/// Hex-encoded ABI calldata ready for eth_sendTransaction or eth_call.
+/// Hex-encoded ABI calldata ready for `eth_sendRawTransaction` / `eth_call`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Erc8004Calldata {
-    /// 4-byte function selector as 0x-prefixed hex.
-    #[serde(default)]
-    pub selector: String,
     /// Full hex-encoded calldata (selector + abi-encoded args).
     #[serde(default)]
     pub calldata: String,
+    /// Optional echoed agent id for `encode_register`.
+    #[serde(default)]
+    pub agent_id: String,
 }
 
 /// Decoded agent record returned by `IdentityRegistry.getAgent()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Erc8004Agent {
-    /// Off-chain registration data URI (e.g. IPFS, HTTPS).
-    #[serde(default)]
-    pub registration_data_uri: String,
     /// Agent owner / controller address.
     #[serde(default)]
-    pub owner: String,
+    pub agent_address: String,
+    /// Off-chain metadata URI (e.g. IPFS, HTTPS).
+    #[serde(default)]
+    pub metadata_uri: String,
+}
+
+/// Decoded `bytes` value returned by `IdentityRegistry.getMetadata()`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Erc8004Metadata {
+    /// Hex-encoded value (`0x` prefix), or empty hex when the entry is unset.
+    #[serde(default)]
+    pub metadata_value: String,
 }

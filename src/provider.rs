@@ -493,7 +493,7 @@ impl ProviderClient {
     /// List all providers discovered on the Tenzro Network via gossipsub announcements.
     ///
     /// Returns both the local node (if it is actively serving models) and all remote providers
-    /// discovered via the `tenzro/providers/1.0.0` gossipsub topic. Each node serving models
+    /// discovered via the `tenzro/providers` gossipsub topic. Each node serving models
     /// broadcasts a `ProviderAnnouncement` message every 60 seconds; this call merges the
     /// local provider entry with all gossipsub-discovered entries.
     ///
@@ -659,7 +659,7 @@ pub struct ModelEndpoint {
 
 /// A provider discovered on the Tenzro Network via gossipsub announcements.
 ///
-/// Providers are discovered via the `tenzro/providers/1.0.0` gossipsub topic.
+/// Providers are discovered via the `tenzro/providers` gossipsub topic.
 /// Each node serving models broadcasts a `ProviderAnnouncement` every 60s and all
 /// peers merge announcements into their `network_providers` cache.
 ///

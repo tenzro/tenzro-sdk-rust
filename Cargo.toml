@@ -44,6 +44,10 @@ name = "ai_inference"
 path = "examples/ai_inference.rs"
 
 [[example]]
+name = "cortex_reasoning"
+path = "examples/cortex_reasoning.rs"
+
+[[example]]
 name = "settlement"
 path = "examples/settlement.rs"
 

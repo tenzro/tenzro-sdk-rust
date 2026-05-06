@@ -371,6 +371,42 @@ impl IdentityClient {
             )
             .await
     }
+
+    /// Lists the public JWK Set published by this node (RFC 7517 / RFC 9421 keyid resolution).
+    ///
+    /// Each entry's `kid` field is the canonical RFC 9421 keyid in the form
+    /// `<did>#<key_fragment>` and resolves directly via [`get_jwk`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let config = SdkConfig::testnet();
+    /// # let client = TenzroClient::connect(config).await?;
+    /// let identity = client.identity();
+    /// let jwks = identity.list_jwks().await?;
+    /// for jwk in &jwks.keys {
+    ///     println!("{} ({})", jwk.kid.as_deref().unwrap_or(""), jwk.kty);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_jwks(&self) -> SdkResult<JwkSet> {
+        self.rpc
+            .call("tenzro_listAgentJwks", serde_json::json!([]))
+            .await
+    }
+
+    /// Looks up a single JWK by its `kid` (RFC 9421 keyid resolution).
+    ///
+    /// `keyid` is typically `<did>#<key_fragment>`.
+    pub async fn get_jwk(&self, keyid: &str) -> SdkResult<Jwk> {
+        self.rpc
+            .call("tenzro_getAgentJwk", serde_json::json!([keyid]))
+            .await
+    }
 }
 
 /// Identity type
@@ -427,6 +463,54 @@ pub struct UsernameResolution {
     /// The DID associated with this username
     #[serde(default)]
     pub did: String,
+}
+
+/// JSON Web Key (RFC 7517 §4) as published by `tenzro_listAgentJwks` /
+/// `tenzro_getAgentJwk`.
+///
+/// Only the public-key half of the key material is ever published. Algorithm-
+/// dependent fields (`x`, `y`, `n`, `e`, `crv`) are populated according to
+/// RFC 7518; unused fields are omitted.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Jwk {
+    /// Key type (RFC 7518 §6) — `OKP` (Ed25519), `EC` (P-256, P-384), `RSA`.
+    pub kty: String,
+    /// Key ID — canonical form `<did>#<key_fragment>` for Tenzro keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kid: Option<String>,
+    /// JWA algorithm identifier (e.g., `EdDSA`, `ES256`, `ES384`, `PS256`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alg: Option<String>,
+    /// Curve identifier for `OKP` / `EC` keys (`Ed25519`, `P-256`, `P-384`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crv: Option<String>,
+    /// Public-key use — typically `sig`.
+    #[serde(rename = "use", skip_serializing_if = "Option::is_none")]
+    pub use_: Option<String>,
+    /// Permitted key operations (e.g., `["verify"]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_ops: Option<Vec<String>>,
+    /// X coordinate (`OKP` raw key, `EC` x).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<String>,
+    /// Y coordinate (`EC` only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<String>,
+    /// RSA modulus (`RSA` only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub n: Option<String>,
+    /// RSA public exponent (`RSA` only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub e: Option<String>,
+}
+
+/// JSON Web Key Set (RFC 7517 §5) — the wire format published at
+/// `/.well-known/jwks.json` and via `tenzro_listAgentJwks`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JwkSet {
+    /// The set of published JWKs.
+    #[serde(default)]
+    pub keys: Vec<Jwk>,
 }
 
 /// Identity information returned by resolve

@@ -10,7 +10,7 @@
 //! copy so downstream Rust consumers can use these without taking a dependency
 //! on the heavy `tenzro-vm` crate.
 //!
-//! - **Program ID**: `SHA-256("tenzro/svm/program/cross_vm/v1")`
+//! - **Program ID**: `SHA-256("tenzro/svm/program/cross_vm")`
 //!   - Hex: `918f858b6b0dd134e9a1fcb73002428c5197093e76e536badc60382bb9f8ac78`
 //!   - Base58: `AoD3kebB2bYjLKyJtaqkyXqwJy4oQ949SnVhMwEYzGXR`
 //!
@@ -37,7 +37,7 @@ pub const TENZRO_CROSS_VM_PROGRAM_ID_BASE58: &str =
     "AoD3kebB2bYjLKyJtaqkyXqwJy4oQ949SnVhMwEYzGXR";
 
 /// Domain string used to derive [`TENZRO_CROSS_VM_PROGRAM_ID`].
-pub const PROGRAM_ID_DERIVATION_DOMAIN: &str = "tenzro/svm/program/cross_vm/v1";
+pub const PROGRAM_ID_DERIVATION_DOMAIN: &str = "tenzro/svm/program/cross_vm";
 
 /// 8-byte Anchor-style instruction discriminators.
 ///

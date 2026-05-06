@@ -273,7 +273,43 @@ impl Ap2Client {
             .await
     }
 
-    // ─── AP2 Mandate Verification (Google AP2 spec) ──────────────────────
+    // ─── AP2 Mandate Signing + Verification (Google AP2 spec) ────────────
+
+    /// Signs an AP2 Intent or Cart mandate via the auth-bound wallet's
+    /// Ed25519 key, returning a verified `Vdc` envelope.
+    ///
+    /// The node builds the canonical AP2 v0.2 preimage internally and signs
+    /// with `WalletService` — the caller never sees raw key material. The
+    /// returned VDC self-verifies before being sent back, so a wrong DID /
+    /// wallet pairing surfaces immediately.
+    ///
+    /// # Auth
+    /// DPoP+JWT mandatory. The wallet must be Ed25519. `signer_did` MUST
+    /// match the controller of the auth-bound wallet (principal for intent,
+    /// agent for cart).
+    ///
+    /// # Arguments
+    ///
+    /// * `mandate_kind` - `"intent"` or `"cart"`
+    /// * `mandate` - the full IntentMandate or CartMandate JSON
+    /// * `signer_did` - signer DID (principal for intent, agent for cart)
+    pub async fn sign_mandate(
+        &self,
+        mandate_kind: &str,
+        mandate: serde_json::Value,
+        signer_did: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_ap2SignMandate",
+                serde_json::json!([{
+                    "mandate_kind": mandate_kind,
+                    "mandate": mandate,
+                    "signer_did": signer_did,
+                }]),
+            )
+            .await
+    }
 
     /// Verifies a single AP2 mandate (Verifiable Digital Credential)
     ///
