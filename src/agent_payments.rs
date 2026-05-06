@@ -1,8 +1,17 @@
-//! Agent Transaction Executor SDK for Tenzro Network
+//! Agent Payment SDK for Tenzro Network
 //!
-//! This module provides agent-level spending policies and transaction
-//! execution, enabling autonomous agents to pay for services within
-//! configurable limits.
+//! Wraps the five `tenzro_*` agent-payment RPCs exposed by `tenzro-node`:
+//! `tenzro_setSpendingPolicy`, `tenzro_getSpendingPolicy`,
+//! `tenzro_agentPayForService`, `tenzro_getAgentDailySpend`, and
+//! `tenzro_listAgentTransactions`. The wallet kernel's TypeScript SDK
+//! (`agent-payments.ts`) calls the same RPC surface; the two SDKs are
+//! kept in lockstep so an agent's runtime spending policy is observable
+//! from either client.
+//!
+//! The runtime axis enforced by these RPCs is the per-machine
+//! `SpendingPolicy` (max_per_transaction + max_daily_spend); the
+//! protocol axis (`DelegationScope` set at identity registration) is
+//! enforced separately by the payment gate.
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;
@@ -23,7 +32,7 @@ use std::sync::Arc;
 ///
 /// // Check an agent's daily spend
 /// let spend = agent_payments.get_daily_spend("did:tenzro:machine:agent-1").await?;
-/// println!("Spent today: {} / {}", spend.total_today, spend.policy_limit);
+/// println!("Spent today: {} / {}", spend.current_daily_spend, spend.max_daily_spend);
 /// # Ok(())
 /// # }
 /// ```
@@ -38,14 +47,16 @@ impl AgentPaymentClient {
         Self { rpc }
     }
 
-    /// Sets the spending policy for an agent
+    /// Sets the runtime spending policy for a machine agent.
     ///
-    /// Defines per-transaction and daily limits, allowed recipients,
-    /// and whether TEE attestation is required for payments.
+    /// Defines the per-transaction and daily-spend ceilings that the
+    /// node-level payment gate enforces alongside the protocol-level
+    /// `DelegationScope`.
     ///
     /// # Arguments
     ///
-    /// * `agent_did` - DID of the agent
+    /// * `agent_did` - DID of the machine agent (canonical
+    ///   `did:tenzro:machine:...` form)
     /// * `policy` - The spending policy to apply
     ///
     /// # Example
@@ -60,44 +71,43 @@ impl AgentPaymentClient {
     /// let agent_payments = client.agent_payments();
     /// let policy = SpendingPolicy {
     ///     max_per_transaction: 1_000_000,
-    ///     max_daily_total: 10_000_000,
-    ///     allowed_recipients: vec![],
-    ///     require_tee_attestation: false,
-    ///     allowed_operations: vec!["inference".to_string(), "storage".to_string()],
+    ///     max_daily_spend: 10_000_000,
+    ///     active: true,
+    ///     allowed_services: vec!["inference".to_string(), "storage".to_string()],
     /// };
     /// let result = agent_payments.set_spending_policy(
     ///     "did:tenzro:machine:agent-1",
-    ///     policy,
+    ///     &policy,
     /// ).await?;
-    /// println!("Policy active from: {}", result.effective_from);
+    /// println!("Policy set for {}", result.agent_did);
     /// # Ok(())
     /// # }
     /// ```
     pub async fn set_spending_policy(
         &self,
         agent_did: &str,
-        policy: SpendingPolicy,
+        policy: &SpendingPolicy,
     ) -> SdkResult<PolicyResult> {
         self.rpc
             .call(
-                "tenzro_setAgentSpendingPolicy",
+                "tenzro_setSpendingPolicy",
                 serde_json::json!([{
                     "agent_did": agent_did,
                     "max_per_transaction": policy.max_per_transaction,
-                    "max_daily_total": policy.max_daily_total,
-                    "allowed_recipients": policy.allowed_recipients,
-                    "require_tee_attestation": policy.require_tee_attestation,
-                    "allowed_operations": policy.allowed_operations,
+                    "max_daily_spend": policy.max_daily_spend,
+                    "active": policy.active,
+                    "allowed_services": policy.allowed_services,
                 }]),
             )
             .await
     }
 
-    /// Gets the current spending policy for an agent
+    /// Gets the current runtime spending policy for a machine agent.
+    /// Returns `None` when no policy is bound.
     ///
     /// # Arguments
     ///
-    /// * `agent_did` - DID of the agent
+    /// * `agent_did` - DID of the machine agent
     ///
     /// # Example
     ///
@@ -108,15 +118,22 @@ impl AgentPaymentClient {
     /// # let config = SdkConfig::testnet();
     /// # let client = TenzroClient::connect(config).await?;
     /// let agent_payments = client.agent_payments();
-    /// let policy = agent_payments.get_spending_policy("did:tenzro:machine:agent-1").await?;
-    /// println!("Max per tx: {}", policy.max_per_transaction);
+    /// if let Some(policy) = agent_payments
+    ///     .get_spending_policy("did:tenzro:machine:agent-1")
+    ///     .await?
+    /// {
+    ///     println!("Max per tx: {}", policy.max_per_transaction);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_spending_policy(&self, agent_did: &str) -> SdkResult<SpendingPolicy> {
+    pub async fn get_spending_policy(
+        &self,
+        agent_did: &str,
+    ) -> SdkResult<Option<SpendingPolicySnapshot>> {
         self.rpc
             .call(
-                "tenzro_getAgentSpendingPolicy",
+                "tenzro_getSpendingPolicy",
                 serde_json::json!([{
                     "agent_did": agent_did,
                 }]),
@@ -124,17 +141,18 @@ impl AgentPaymentClient {
             .await
     }
 
-    /// Executes a payment from an agent to a provider for a service
-    ///
-    /// The payment is validated against the agent's spending policy before
-    /// execution.
+    /// Records a service payment from an agent to a provider against the
+    /// agent's runtime spending policy. Per-transaction and daily-spend
+    /// ceilings are enforced *before* the payment is recorded; a violation
+    /// returns a JSON-RPC error and no audit record is written.
     ///
     /// # Arguments
     ///
-    /// * `agent_did` - DID of the paying agent
-    /// * `provider` - Provider address or DID
-    /// * `amount` - Payment amount
-    /// * `service_type` - Type of service being paid for
+    /// * `agent_did` - DID of the paying machine agent
+    /// * `provider` - Provider DID, hex address, or service URL
+    /// * `amount` - Payment amount in smallest TNZO unit
+    /// * `service_type` - Free-form category label (e.g. `"inference"`,
+    ///   `"tee"`, `"settlement"`)
     ///
     /// # Example
     ///
@@ -151,7 +169,7 @@ impl AgentPaymentClient {
     ///     500_000,
     ///     "inference",
     /// ).await?;
-    /// println!("Payment tx: {}", receipt.tx_hash);
+    /// println!("Receipt id: {}", receipt.receipt_id);
     /// # Ok(())
     /// # }
     /// ```
@@ -175,11 +193,13 @@ impl AgentPaymentClient {
             .await
     }
 
-    /// Gets the daily spend summary for an agent
+    /// Reads the current-day spend + remaining cap for a machine agent.
+    /// Triggers the daily-window reset if the wall-clock has rolled past
+    /// a UTC midnight since the last recorded transaction.
     ///
     /// # Arguments
     ///
-    /// * `agent_did` - DID of the agent
+    /// * `agent_did` - DID of the machine agent
     ///
     /// # Example
     ///
@@ -206,12 +226,15 @@ impl AgentPaymentClient {
             .await
     }
 
-    /// Lists recent transactions for an agent
+    /// Lists the audit trail of service payments recorded for a machine
+    /// agent in chronological order (oldest first within the returned
+    /// slice). When `limit` is provided, only the most recent `limit`
+    /// records are returned.
     ///
     /// # Arguments
     ///
-    /// * `agent_did` - DID of the agent
-    /// * `limit` - Maximum number of transactions to return
+    /// * `agent_did` - DID of the machine agent
+    /// * `limit` - Optional cap on the number of records returned
     ///
     /// # Example
     ///
@@ -222,132 +245,165 @@ impl AgentPaymentClient {
     /// # let config = SdkConfig::testnet();
     /// # let client = TenzroClient::connect(config).await?;
     /// let agent_payments = client.agent_payments();
-    /// let txs = agent_payments.list_agent_transactions(
+    /// let txs = agent_payments.list_transactions(
     ///     "did:tenzro:machine:agent-1",
-    ///     20,
+    ///     Some(20),
     /// ).await?;
     /// for tx in &txs {
-    ///     println!("{}: {} for {}", tx.tx_id, tx.amount, tx.service);
+    ///     println!("{}: {} for {}", tx.receipt_id, tx.amount, tx.service_type);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_agent_transactions(
+    pub async fn list_transactions(
         &self,
         agent_did: &str,
-        limit: u32,
-    ) -> SdkResult<Vec<AgentTransaction>> {
+        limit: Option<u32>,
+    ) -> SdkResult<Vec<AgentTransactionRecord>> {
+        let mut params = serde_json::json!({
+            "agent_did": agent_did,
+        });
+        if let Some(n) = limit {
+            params["limit"] = serde_json::json!(n);
+        }
         self.rpc
             .call(
                 "tenzro_listAgentTransactions",
-                serde_json::json!([{
-                    "agent_did": agent_did,
-                    "limit": limit,
-                }]),
+                serde_json::json!([params]),
             )
             .await
     }
 }
 
-/// Spending policy for an agent
+/// Runtime spending policy for a machine agent.
+///
+/// Mirrors the node-side [`tenzro_agent::SpendingPolicy`] shape exposed
+/// over the wallet-kernel public API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpendingPolicy {
+    /// Maximum amount per single transaction (smallest TNZO unit)
+    #[serde(default)]
+    pub max_per_transaction: u64,
+    /// Maximum daily spend (smallest TNZO unit)
+    #[serde(default)]
+    pub max_daily_spend: u64,
+    /// Whether the policy is currently enforced. When `false`, the gate
+    /// short-circuits to "allow" — useful for parking a machine without
+    /// rewriting its policy.
+    #[serde(default = "default_active")]
+    pub active: bool,
+    /// Human-readable hints to the wallet kernel about which service
+    /// categories the operator opted the agent into. Not enforced at the
+    /// runtime layer; kept for client-side UX.
+    #[serde(default)]
+    pub allowed_services: Vec<String>,
+}
+
+fn default_active() -> bool {
+    true
+}
+
+/// Snapshot returned by `get_spending_policy` — the policy plus the
+/// node's current daily-window state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpendingPolicySnapshot {
+    /// DID of the machine agent
+    #[serde(default)]
+    pub agent_did: String,
     /// Maximum amount per single transaction
     #[serde(default)]
     pub max_per_transaction: u64,
-    /// Maximum total daily spend
+    /// Maximum daily spend
     #[serde(default)]
-    pub max_daily_total: u64,
-    /// Allowed recipient addresses or DIDs (empty = all allowed)
+    pub max_daily_spend: u64,
+    /// Spend recorded for the current daily window
     #[serde(default)]
-    pub allowed_recipients: Vec<String>,
-    /// Whether TEE attestation is required for payments
+    pub current_daily_spend: u64,
+    /// Unix-seconds timestamp when the daily window last reset
     #[serde(default)]
-    pub require_tee_attestation: bool,
-    /// Allowed operation types (empty = all allowed)
-    #[serde(default)]
-    pub allowed_operations: Vec<String>,
+    pub last_reset: i64,
+    /// Whether the policy is currently enforced
+    #[serde(default = "default_active")]
+    pub active: bool,
 }
 
-/// Receipt for an agent payment
+/// Receipt for a service payment recorded via `pay_for_service`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentPaymentReceipt {
-    /// Receipt identifier
-    #[serde(default)]
-    pub receipt_id: String,
     /// DID of the paying agent
     #[serde(default)]
     pub agent_did: String,
-    /// Provider address or DID
+    /// Provider counterparty
     #[serde(default)]
     pub provider: String,
-    /// Amount paid
+    /// Settled amount
     #[serde(default)]
     pub amount: u64,
-    /// Service type
+    /// Service category label
     #[serde(default)]
-    pub service: String,
-    /// On-chain transaction hash
+    pub service_type: String,
+    /// Receipt identifier minted by the node
     #[serde(default)]
-    pub tx_hash: String,
-    /// Payment timestamp (Unix seconds)
+    pub receipt_id: String,
+    /// Unix-seconds timestamp when the payment cleared
     #[serde(default)]
-    pub timestamp: u64,
+    pub timestamp: i64,
+    /// `true` when the runtime gate accepted the payment
+    #[serde(default)]
+    pub success: bool,
 }
 
-/// Daily spend summary for an agent
+/// Daily spend summary returned by `get_daily_spend`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DailySpend {
     /// DID of the agent
     #[serde(default)]
     pub agent_did: String,
-    /// Total spent today
+    /// Spend recorded for the current daily window
     #[serde(default)]
-    pub total_today: u64,
-    /// Remaining daily budget
+    pub current_daily_spend: u64,
+    /// Daily cap configured on the policy
+    #[serde(default)]
+    pub max_daily_spend: u64,
+    /// Remaining spend before the daily cap is hit
     #[serde(default)]
     pub remaining: u64,
-    /// Policy daily limit
+    /// Unix-seconds timestamp when the daily window last reset
     #[serde(default)]
-    pub policy_limit: u64,
-    /// Daily reset timestamp (Unix seconds)
-    #[serde(default)]
-    pub reset_at: u64,
+    pub last_reset: i64,
 }
 
-/// A single agent transaction record
+/// Single audit record returned by `list_transactions`. Mirrors the
+/// node-side [`tenzro_agent::AgentTransactionRecord`] shape.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentTransaction {
-    /// Transaction identifier
-    #[serde(default)]
-    pub tx_id: String,
-    /// DID of the agent
+pub struct AgentTransactionRecord {
+    /// DID of the paying agent
     #[serde(default)]
     pub agent_did: String,
-    /// Amount paid
+    /// Provider counterparty
+    #[serde(default)]
+    pub provider: String,
+    /// Service category label
+    #[serde(default)]
+    pub service_type: String,
+    /// Settled amount
     #[serde(default)]
     pub amount: u64,
-    /// Service type
+    /// Unix-seconds timestamp when the payment cleared
     #[serde(default)]
-    pub service: String,
-    /// Transaction status (e.g., "confirmed", "pending", "failed")
+    pub timestamp: i64,
+    /// Receipt identifier minted by the node
     #[serde(default)]
-    pub status: String,
-    /// Transaction timestamp (Unix seconds)
-    #[serde(default)]
-    pub timestamp: u64,
+    pub receipt_id: String,
 }
 
-/// Result from setting a spending policy
+/// Result of `set_spending_policy` — confirms which DID's policy was updated.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyResult {
-    /// DID of the agent
+    /// `true` when the policy was successfully written
+    #[serde(default)]
+    pub success: bool,
+    /// DID of the agent the policy was set for
     #[serde(default)]
     pub agent_did: String,
-    /// Hash of the policy for verification
-    #[serde(default)]
-    pub policy_hash: String,
-    /// Timestamp when the policy becomes effective
-    #[serde(default)]
-    pub effective_from: String,
 }
