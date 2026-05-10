@@ -61,13 +61,13 @@ impl StakingClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stake(&self, amount: u128, role: &str) -> SdkResult<StakeResult> {
+    pub async fn stake(&self, amount: u128, provider_type: &str) -> SdkResult<StakeResult> {
         self.rpc
             .call(
                 "tenzro_stake",
                 serde_json::json!([{
                     "amount": amount.to_string(),
-                    "role": role,
+                    "provider_type": provider_type,
                 }]),
             )
             .await

@@ -244,7 +244,13 @@ impl ProviderClient {
     /// Register as a provider on the network
     ///
     /// Model/inference providers do not need to stake TNZO — pass `0` for
-    /// `stake_amount`. Staking is only required for validators.
+    /// `stake`. Staking is only required for validators.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_type` - One of `"validator"`, `"model_provider"`, `"tee_provider"`, `"storage_provider"`
+    /// * `models` - List of model IDs this provider serves (informational; not stored on-chain by handler)
+    /// * `stake` - Stake amount in **wei** (10^-18 TNZO). Pass `0` for non-validator providers.
     ///
     /// # Example
     ///
@@ -256,16 +262,28 @@ impl ProviderClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let provider = client.provider();
     /// let models = vec!["gemma3-270m".to_string()];
-    /// // No staking required for model providers — pass 0
-    /// let tx_hash = provider.register(models, 0).await?;
+    /// // No staking required for model providers — pass 0 wei
+    /// let tx_hash = provider.register("model_provider", models, 0).await?;
     /// println!("Registration tx: {}", tx_hash);
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn register(&self, models: Vec<String>, stake_amount: u64) -> SdkResult<String> {
+    pub async fn register(
+        &self,
+        provider_type: &str,
+        models: Vec<String>,
+        stake: u128,
+    ) -> SdkResult<String> {
         let result: serde_json::Value = self
             .rpc
-            .call("tenzro_registerProvider", json!([models, stake_amount]))
+            .call(
+                "tenzro_registerProvider",
+                json!([{
+                    "provider_type": provider_type,
+                    "models": models,
+                    "stake": stake.to_string(),
+                }]),
+            )
             .await?;
         Ok(result.as_str().unwrap_or("").to_string())
     }

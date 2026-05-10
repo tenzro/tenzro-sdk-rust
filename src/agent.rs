@@ -354,6 +354,47 @@ impl AgentClient {
             )
             .await
     }
+
+    /// Operational suspend (Active → Suspended). The reversible counterpart
+    /// of [`resume_agent`]. Distinct from the kill-switch `pause`/`quarantine`
+    /// axes which require signed `PauseAgent` / `QuarantineAgent` transactions.
+    pub async fn suspend_agent(
+        &self,
+        agent_id: &str,
+        reason: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_suspendAgent",
+                serde_json::json!({
+                    "agent_id": agent_id,
+                    "reason": reason,
+                }),
+            )
+            .await
+    }
+
+    /// Recover a Suspended agent back to Active. Used to recover from
+    /// auto-suspend (heartbeat monitor) or manual [`suspend_agent`].
+    pub async fn resume_agent(&self, agent_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_resumeAgent",
+                serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
+
+    /// Send a liveness heartbeat for an agent. The heartbeat monitor uses
+    /// `last_heartbeat` to decide whether to auto-suspend on the next sweep.
+    pub async fn agent_heartbeat(&self, agent_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_agentHeartbeat",
+                serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
 }
 
 /// Response from agent registration

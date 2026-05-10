@@ -680,7 +680,7 @@ impl AppClient {
                     "title": title,
                     "description": description,
                     "task_type": task_type,
-                    "max_price": format!("0x{:x}", budget_wei),
+                    "max_price": budget_wei.to_string(),
                     "poster": self.master_wallet.address,
                     "on_behalf_of": user_address,
                 }]),
