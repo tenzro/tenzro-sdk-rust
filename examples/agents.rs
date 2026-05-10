@@ -20,14 +20,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = TenzroClient::connect(config).await?;
     let agent = client.agent();
 
-    // Register an agent
+    // Register an agent. The node provisions a server-side hybrid wallet
+    // (FROST Ed25519 + ML-DSA-65) and binds it to a fresh did:tenzro:machine:
+    // identity. The `creator` is the human/machine address that will own the
+    // agent — replace with your wallet address.
+    let creator = "0x0000000000000000000000000000000000000000000000000000000000000001";
     println!("Registering agent...");
     let response = agent
-        .register("data-analyzer-001", "Data Analyzer Agent", &["inference", "analysis"])
+        .register("Data Analyzer Agent", creator, &["nlp", "data"])
         .await?;
     println!("Agent registered successfully!");
     println!("  Agent ID: {}", response.agent_id);
-    println!("  Status: {}\n", response.status);
+    println!("  DID: {}", response.tenzro_did);
+    println!("  Wallet: {}", response.wallet_address);
+    println!("  Classical pubkey: {}\n", response.classical_public_key);
+    let agent_id = response.agent_id.clone();
 
     // List all agents
     println!("Listing all registered agents...");
@@ -38,19 +45,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // Send a message to the agent
-    println!("Sending message to agent...");
+    // Send an unsigned message — only succeeds against a router with
+    // enable_signing == false. For the production router, see
+    // send_message_signed below.
+    println!("Sending message to agent (unsigned, dev mode)...");
     let response = agent
-        .send_message("data-analyzer-001", "Analyze user metrics for the last 30 days")
+        .send_message(&agent_id, &agent_id, "Analyze user metrics for the last 30 days")
         .await?;
-    println!("Received response from agent!");
+    println!("Message accepted!");
     println!("  Message ID: {}", response.message_id);
-    println!("  Payload: {}\n", response.payload);
+    println!("  Signed: {}\n", response.signed);
 
     // Delegate a task to the agent via A2A
     println!("Delegating task to agent...");
     let task_response = agent
-        .delegate_task("data-analyzer-001", "Process and aggregate user interaction data")
+        .delegate_task(&agent_id, "Process and aggregate user interaction data")
         .await?;
     println!("Task delegated successfully!");
     println!("  Task ID: {}", task_response.id);

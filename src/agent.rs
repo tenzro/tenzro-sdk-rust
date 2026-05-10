@@ -39,37 +39,134 @@ impl AgentClient {
         Self { rpc }
     }
 
-    /// Registers a new AI agent on the network
+    /// Registers a new AI agent on the network. The node provisions a
+    /// server-side hybrid (FROST Ed25519 + ML-DSA-65) wallet for the agent
+    /// and binds it to a fresh `did:tenzro:machine:` identity. Returns the
+    /// `agent_id`, `wallet_address`, `tenzro_did`, and the agent's
+    /// `classical_public_key` (32-byte Ed25519 hex) plus the
+    /// `pq_verifying_key_len`. The classical key is what the
+    /// `MessageRouter` will use to verify Ed25519 signatures on
+    /// outbound `tenzro_sendAgentMessage` calls.
+    ///
+    /// `creator` is the hex-encoded address that owns this agent. Each
+    /// element of `capabilities` may be a short tag (`"nlp"`, `"vision"`,
+    /// `"code"`, `"data"`, `"blockchain"`, `"smart_contract"`,
+    /// `"api_integration"`, `"coordination"`) — anything else becomes a
+    /// `Custom` capability with that name.
+    ///
+    /// For self-custodial registration (no server-held keys), see
+    /// [`Self::register_with_keys`].
     pub async fn register(
         &self,
-        agent_id: &str,
         name: &str,
+        creator: &str,
         capabilities: &[&str],
     ) -> SdkResult<RegisterAgentResponse> {
         self.rpc
             .call(
                 "tenzro_registerAgent",
                 serde_json::json!([{
-                    "agent_id": agent_id,
                     "name": name,
+                    "creator": creator,
                     "capabilities": capabilities,
                 }]),
             )
             .await
     }
 
-    /// Sends a message to an agent
+    /// BYOK registration: register an agent self-custodially with a
+    /// caller-supplied hybrid keypair. Both `public_key` (32 bytes,
+    /// Ed25519) and `pq_public_key` (1952 bytes, ML-DSA-65) must be
+    /// supplied as hex (with or without `0x` prefix). The node performs
+    /// no wallet provisioning — the caller retains full control of the
+    /// signing keys, and is responsible for producing all
+    /// `tenzro_sendAgentMessage` signatures off-node. The returned
+    /// envelope sets `byok: true` and omits the
+    /// `classical_public_key`/`pq_verifying_key_len` fields (the
+    /// caller already has them).
+    pub async fn register_with_keys(
+        &self,
+        name: &str,
+        creator: &str,
+        capabilities: &[&str],
+        public_key: &str,
+        pq_public_key: &str,
+    ) -> SdkResult<RegisterAgentResponse> {
+        self.rpc
+            .call(
+                "tenzro_registerAgent",
+                serde_json::json!([{
+                    "name": name,
+                    "creator": creator,
+                    "capabilities": capabilities,
+                    "public_key": public_key,
+                    "pq_public_key": pq_public_key,
+                }]),
+            )
+            .await
+    }
+
+    /// Sends an unsigned `AgentMessage` from one registered agent to
+    /// another. Only valid when the local node's `MessageRouter` has
+    /// `enable_signing == false` (test/dev configs). On the production
+    /// router this call is rejected with a signature-required error —
+    /// use [`Self::send_message_signed`] instead.
     pub async fn send_message(
         &self,
-        agent_id: &str,
+        from: &str,
+        to: &str,
         message: &str,
     ) -> SdkResult<AgentMessageResponse> {
         self.rpc
             .call(
                 "tenzro_sendAgentMessage",
                 serde_json::json!([{
-                    "agent_id": agent_id,
+                    "from": from,
+                    "to": to,
                     "message": message,
+                }]),
+            )
+            .await
+    }
+
+    /// Sends a hybrid-signed `AgentMessage`. Both signature legs are
+    /// required when the router enforces signing (production default);
+    /// half-signed messages are rejected to prevent downgrade attacks.
+    ///
+    /// The signing preimage is `SHA-256(AgentMessage::signing_data())`,
+    /// which depends on `from`, `to`, the resolved sender/recipient
+    /// wallet addresses, the message body, the message type, and the
+    /// optional `reply_to`. Callers must construct the same preimage
+    /// off-node and produce both an Ed25519 (64-byte) and an
+    /// ML-DSA-65 (3309-byte) signature. Both signatures are passed as
+    /// hex (with or without `0x` prefix).
+    ///
+    /// `reply_to` (if used) MUST be set on the message before signing,
+    /// because it is part of `signing_data` — the SDK forwards it
+    /// verbatim so the server reconstructs the same preimage the
+    /// caller signed.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_message_signed(
+        &self,
+        from: &str,
+        to: &str,
+        message: &str,
+        signature: &str,
+        pq_signature: &str,
+        message_type: Option<&str>,
+        reply_to: Option<&str>,
+    ) -> SdkResult<AgentMessageResponse> {
+        self.rpc
+            .call(
+                "tenzro_sendAgentMessage",
+                serde_json::json!([{
+                    "from": from,
+                    "to": to,
+                    "message": message,
+                    "signature": signature,
+                    "pq_signature": pq_signature,
+                    "message_type": message_type,
+                    "reply_to": reply_to,
                 }]),
             )
             .await
@@ -397,22 +494,65 @@ impl AgentClient {
     }
 }
 
-/// Response from agent registration
+/// Response from agent registration. Mirrors the JSON shape returned by
+/// `tenzro_registerAgent`. The `byok` flag distinguishes the two
+/// registration modes — when `true`, `classical_public_key` and
+/// `pq_verifying_key_len` are absent because the keys are caller-held.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterAgentResponse {
     #[serde(default)]
     pub agent_id: String,
     #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub creator: String,
+    #[serde(default)]
+    pub wallet_address: String,
+    #[serde(default)]
+    pub capabilities: usize,
+    #[serde(default)]
     pub status: String,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub tenzro_did: String,
+    #[serde(default)]
+    pub registration_fee: String,
+    /// Hex-encoded 32-byte Ed25519 verifying key. Provisioner mode only.
+    #[serde(default)]
+    pub classical_public_key: String,
+    /// Length of the ML-DSA-65 verifying key (1952 for production).
+    /// Provisioner mode only.
+    #[serde(default)]
+    pub pq_verifying_key_len: usize,
+    /// `true` for self-custodial registrations where the caller supplied
+    /// both the classical and PQ public keys; `false` for the
+    /// node-provisioned hybrid wallet path.
+    #[serde(default)]
+    pub byok: bool,
 }
 
-/// Response from sending an agent message
+/// Response from sending an agent message. Mirrors the JSON shape
+/// returned by `tenzro_sendAgentMessage`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMessageResponse {
     #[serde(default)]
-    pub payload: String,
-    #[serde(default)]
     pub message_id: String,
+    #[serde(default)]
+    pub from: String,
+    #[serde(default)]
+    pub to: String,
+    #[serde(default)]
+    pub status: String,
+    /// Unix-millis timestamp the server stamped on the constructed
+    /// `AgentMessage` before validating the signature.
+    #[serde(default)]
+    pub timestamp: u64,
+    /// `true` when the server attached both signature legs to the
+    /// message; `false` when the message was accepted unsigned (only
+    /// possible on `enable_signing == false` routers).
+    #[serde(default)]
+    pub signed: bool,
 }
 
 /// Response from delegating a task

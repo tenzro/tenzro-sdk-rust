@@ -34,9 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 2. Register agent with Base DeFi skill ─────────────────────────────
     println!("2. Spawning yield strategy agent...");
     let agent = client.agent().register(
-        "base-yield-agent",
         "Base Yield Strategist",
-        &["defi", "yield", "base"],
+        &wallet.address,
+        &["blockchain", "data"],
     ).await?;
     println!("   Agent ID: {}\n", agent.agent_id);
 
@@ -46,36 +46,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ETH/USD price via Chainlink AggregatorV3
     let eth_price = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use eth_get_price tool: pair=ETH/USD, chain_id=8453",
     ).await?;
-    println!("   ETH/USD: {}", eth_price.payload);
+    println!("   ETH/USD: {}", eth_price.message_id);
 
     // USDC/USD to verify peg
     let usdc_price = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use eth_get_price tool: pair=USDC/USD, chain_id=8453",
     ).await?;
-    println!("   USDC/USD: {}\n", usdc_price.payload);
+    println!("   USDC/USD: {}\n", usdc_price.message_id);
 
     // ─── 4. Monitor gas for optimal entry ───────────────────────────────────
     println!("4. Checking Base gas prices...");
     let gas = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use eth_get_gas_price tool: chain_id=8453",
     ).await?;
-    println!("   Gas price: {}", gas.payload);
+    println!("   Gas price: {}", gas.message_id);
 
     let fee_history = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use eth_get_fee_history tool: block_count=5, chain_id=8453",
     ).await?;
-    println!("   Fee trend: {}\n", fee_history.payload);
+    println!("   Fee trend: {}\n", fee_history.message_id);
 
     // ─── 5. Check token balances ────────────────────────────────────────────
     println!("5. Checking ERC-20 balances...");
 
     // USDC on Base (well-known address)
     let usdc_balance = client.agent().send_message(
+        &agent.agent_id,
         &agent.agent_id,
         &format!(
             "Use eth_get_token_balance tool: address={}, \
@@ -84,20 +89,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             wallet.address,
         ),
     ).await?;
-    println!("   USDC balance: {}", usdc_balance.payload);
+    println!("   USDC balance: {}", usdc_balance.message_id);
 
     // ETH balance
     let eth_bal = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         &format!("Use eth_get_balance tool: address={}, chain_id=8453", wallet.address),
     ).await?;
-    println!("   ETH balance:  {}\n", eth_bal.payload);
+    println!("   ETH balance:  {}\n", eth_bal.message_id);
 
     // ─── 6. Encode vault deposit call ───────────────────────────────────────
     println!("6. Encoding vault deposit transaction...");
 
     // Encode an ERC-4626 vault deposit(uint256 assets, address receiver)
     let deposit_calldata = client.agent().send_message(
+        &agent.agent_id,
         &agent.agent_id,
         &format!(
             "Use eth_encode_function tool: \
@@ -106,24 +113,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             wallet.address,
         ),
     ).await?;
-    println!("   Calldata: {}\n", deposit_calldata.payload);
+    println!("   Calldata: {}\n", deposit_calldata.message_id);
 
     // ─── 7. Simulate the deposit via contract call ──────────────────────────
     println!("7. Simulating vault deposit (eth_call)...");
     let sim_result = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         &format!(
             "Use eth_call_contract tool: \
              to=0x0000000000000000000000000000000000000001, \
              data={}, from={}, chain_id=8453",
-            deposit_calldata.payload, wallet.address,
+            deposit_calldata.message_id, wallet.address,
         ),
     ).await?;
-    println!("   Simulation result: {}\n", sim_result.payload);
+    println!("   Simulation result: {}\n", sim_result.message_id);
 
     // ─── 8. Register agent on-chain via ERC-8004 ────────────────────────────
     println!("8. Registering agent on-chain (ERC-8004)...");
     let erc8004 = client.agent().send_message(
+        &agent.agent_id,
         &agent.agent_id,
         &format!(
             "Use eth_register_agent_8004 tool: \
@@ -131,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             wallet.address,
         ),
     ).await?;
-    println!("   ERC-8004 registration: {}\n", erc8004.payload);
+    println!("   ERC-8004 registration: {}\n", erc8004.message_id);
 
     // ─── 9. Settle yield profits on Tenzro Ledger ───────────────────────────
     println!("9. Settling yield profits...");
@@ -149,11 +158,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("10. Querying EAS attestation...");
     let attestation = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use eth_get_attestation tool: \
          uid=0x0000000000000000000000000000000000000000000000000000000000000001, \
          chain_id=8453",
     ).await?;
-    println!("   Attestation: {}\n", attestation.payload);
+    println!("   Attestation: {}\n", attestation.message_id);
 
     println!("=== Base Yield Strategy Complete ===");
     println!("Chain: Base (chain_id 8453)");
