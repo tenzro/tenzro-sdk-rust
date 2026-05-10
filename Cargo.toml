@@ -27,6 +27,10 @@ hex = "0.4"
 uuid = { version = "1", features = ["v4"] }
 tracing = "0.1"
 base64 = "0.22"
+async-trait = "0.1"
+getrandom = "0.2"
+p256 = { version = "0.13", features = ["ecdsa"] }
+sha2 = "0.10"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"

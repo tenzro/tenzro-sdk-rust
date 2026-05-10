@@ -92,10 +92,12 @@ pub mod inference;
 pub mod marketplace;
 pub mod nanopayment;
 pub mod nft;
+pub mod passkey;
 pub mod payment;
 pub mod provider;
 pub mod rpc;
 pub mod settlement;
+pub mod signer;
 pub mod skill;
 pub mod staking;
 pub mod streaming;
@@ -174,6 +176,11 @@ pub use inference::InferenceClient;
 pub use marketplace::MarketplaceClient;
 pub use nanopayment::NanopaymentClient;
 pub use nft::{CollectionInfo, MintResult, NftClient, NftInfo, NftTransferResult, PointerResult};
+pub use passkey::{
+    AuthenticatorAssertion, AuthenticatorRegistration, CrossDeviceLink, PasskeyConfig,
+    PasskeyCredential, PasskeyWallet, PlatformAuthenticator, SoftwareP256Authenticator,
+    WebAuthnSigner, WebAuthnValidator,
+};
 pub use payment::{
     GatewayInfo, PaymentChallenge, PaymentClient, PaymentReceipt, PaymentSession,
     X402SchemeDescriptor, X402SchemeRegistry,
@@ -183,6 +190,12 @@ pub use provider::{
     ParticipateResponse, ProviderClient, ProviderStats,
 };
 pub use settlement::{SettlementClient, SettlementRequest, SettleResponse};
+pub use signer::{
+    Erc7579ModuleType, GuardianSignature, KeyBlob, KeyId, KeyStorage, PackedUserOperation,
+    RecoveryError, RecoveryGuardian, RecoveryProposal, SignContext, Signature, Signer, SignerError,
+    SignerKind, StorageCapabilities, StorageError, StoragePolicy, TeeBackend, TxHash, Validator,
+    ValidatorError,
+};
 pub use skill::SkillClient;
 pub use staking::StakingClient;
 pub use streaming::{
