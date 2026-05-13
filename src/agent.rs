@@ -61,7 +61,7 @@ impl AgentClient {
         name: &str,
         creator: &str,
         capabilities: &[&str],
-    ) -> SdkResult<RegisterAgentResponse> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_registerAgent",
