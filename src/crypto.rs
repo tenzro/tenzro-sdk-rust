@@ -144,13 +144,13 @@ impl CryptoClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn encrypt(&self, key: &str, plaintext: &[u8]) -> SdkResult<EncryptResult> {
+    pub async fn encrypt(&self, key: &str, plaintext: &[u8]) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_encrypt",
                 serde_json::json!([{
-                    "key": key,
-                    "plaintext": hex::encode(plaintext),
+                    "key_hex": key,
+                    "plaintext_hex": hex::encode(plaintext),
                 }]),
             )
             .await
@@ -168,14 +168,14 @@ impl CryptoClient {
         key: &str,
         ciphertext: &[u8],
         nonce: &[u8],
-    ) -> SdkResult<DecryptResult> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_decrypt",
                 serde_json::json!([{
-                    "key": key,
-                    "ciphertext": hex::encode(ciphertext),
-                    "nonce": hex::encode(nonce),
+                    "key_hex": key,
+                    "ciphertext_hex": hex::encode(ciphertext),
+                    "nonce_hex": hex::encode(nonce),
                 }]),
             )
             .await
@@ -189,13 +189,13 @@ impl CryptoClient {
     ///
     /// * `password` - Password to derive key from
     /// * `salt` - Salt bytes (16 bytes recommended)
-    pub async fn derive_key(&self, password: &str, salt: &[u8]) -> SdkResult<DerivedKey> {
+    pub async fn derive_key(&self, password: &str, salt: &[u8]) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_deriveKey",
                 serde_json::json!([{
                     "password": password,
-                    "salt": hex::encode(salt),
+                    "salt_hex": hex::encode(salt),
                 }]),
             )
             .await
@@ -252,11 +252,11 @@ impl CryptoClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn hash_sha256(&self, data: &[u8]) -> SdkResult<String> {
+    pub async fn hash_sha256(&self, data: &[u8]) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_hashSha256",
-                serde_json::json!([{ "data": hex::encode(data) }]),
+                serde_json::json!([{ "data_hex": hex::encode(data) }]),
             )
             .await
     }
@@ -277,11 +277,11 @@ impl CryptoClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn hash_keccak256(&self, data: &[u8]) -> SdkResult<String> {
+    pub async fn hash_keccak256(&self, data: &[u8]) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_hashKeccak256",
-                serde_json::json!([{ "data": hex::encode(data) }]),
+                serde_json::json!([{ "data_hex": hex::encode(data) }]),
             )
             .await
     }
@@ -298,13 +298,13 @@ impl CryptoClient {
         &self,
         private_key: &str,
         public_key: &str,
-    ) -> SdkResult<SharedSecret> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_x25519KeyExchange",
                 serde_json::json!([{
-                    "private_key": private_key,
-                    "public_key": public_key,
+                    "private_key_hex": private_key,
+                    "public_key_hex": public_key,
                 }]),
             )
             .await
