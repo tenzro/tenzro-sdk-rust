@@ -514,6 +514,34 @@ impl TenzroClient {
         AuthClient::new(self.rpc.clone())
     }
 
+    pub fn bond(&self) -> crate::bond::BondClient {
+        crate::bond::BondClient::new(self.rpc.clone())
+    }
+
+    pub fn insurance(&self) -> crate::insurance::InsuranceClient {
+        crate::insurance::InsuranceClient::new(self.rpc.clone())
+    }
+
+    pub fn lifecycle(&self) -> crate::lifecycle::LifecycleClient {
+        crate::lifecycle::LifecycleClient::new(self.rpc.clone())
+    }
+
+    pub fn principal_chain(&self) -> crate::principal_chain::PrincipalChainClient {
+        crate::principal_chain::PrincipalChainClient::new(self.rpc.clone())
+    }
+
+    pub fn quota(&self) -> crate::quota::QuotaClient {
+        crate::quota::QuotaClient::new(self.rpc.clone())
+    }
+
+    pub fn adaptive_burn(&self) -> crate::adaptive_burn::AdaptiveBurnClient {
+        crate::adaptive_burn::AdaptiveBurnClient::new(self.rpc.clone())
+    }
+
+    pub fn seed_agent(&self) -> crate::seed_agent::SeedAgentClient {
+        crate::seed_agent::SeedAgentClient::new(self.rpc.clone())
+    }
+
     /// Returns the SDK configuration
     pub fn config(&self) -> &SdkConfig {
         &self.config
