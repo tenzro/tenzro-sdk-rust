@@ -78,11 +78,13 @@ impl WalletClient {
     }
 
     /// Gets the token balance of an address (decimal string)
-    pub async fn get_token_balance(&self, address: Address) -> SdkResult<String> {
+    pub async fn get_token_balance(&self, address: Address) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_tokenBalance",
-                serde_json::json!([format!("0x{}", hex::encode(address.as_bytes()))]),
+                serde_json::json!([{
+                    "address": format!("0x{}", hex::encode(address.as_bytes())),
+                }]),
             )
             .await
     }
