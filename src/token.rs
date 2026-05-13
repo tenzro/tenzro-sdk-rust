@@ -137,7 +137,7 @@ impl TokenClient {
         symbol: Option<&str>,
         evm_address: Option<&str>,
         token_id: Option<&str>,
-    ) -> SdkResult<TokenInfo> {
+    ) -> SdkResult<serde_json::Value> {
         let mut params = serde_json::Map::new();
 
         if let Some(s) = symbol {
