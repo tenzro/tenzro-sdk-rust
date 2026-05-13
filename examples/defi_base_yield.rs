@@ -38,23 +38,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &wallet.address,
         &["blockchain", "data"],
     ).await?;
-    println!("   Agent ID: {}\n", agent.agent_id);
+    let agent_id = agent
+        .get("agent_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    println!("   Agent: {:#?}\n", agent);
 
     // ─── 3. Check Chainlink price feeds ─────────────────────────────────────
     println!("3. Querying Chainlink price feeds on Base...");
 
     // ETH/USD price via Chainlink AggregatorV3
     let eth_price = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use eth_get_price tool: pair=ETH/USD, chain_id=8453",
     ).await?;
     println!("   ETH/USD: {}", eth_price.message_id);
 
     // USDC/USD to verify peg
     let usdc_price = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use eth_get_price tool: pair=USDC/USD, chain_id=8453",
     ).await?;
     println!("   USDC/USD: {}\n", usdc_price.message_id);
@@ -62,15 +67,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 4. Monitor gas for optimal entry ───────────────────────────────────
     println!("4. Checking Base gas prices...");
     let gas = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use eth_get_gas_price tool: chain_id=8453",
     ).await?;
     println!("   Gas price: {}", gas.message_id);
 
     let fee_history = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use eth_get_fee_history tool: block_count=5, chain_id=8453",
     ).await?;
     println!("   Fee trend: {}\n", fee_history.message_id);
@@ -80,8 +85,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // USDC on Base (well-known address)
     let usdc_balance = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         &format!(
             "Use eth_get_token_balance tool: address={}, \
              token_address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913, \
@@ -93,8 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ETH balance
     let eth_bal = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         &format!("Use eth_get_balance tool: address={}, chain_id=8453", wallet.address),
     ).await?;
     println!("   ETH balance:  {}\n", eth_bal.message_id);
@@ -104,8 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Encode an ERC-4626 vault deposit(uint256 assets, address receiver)
     let deposit_calldata = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         &format!(
             "Use eth_encode_function tool: \
              function_signature=deposit(uint256,address), \
@@ -118,8 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 7. Simulate the deposit via contract call ──────────────────────────
     println!("7. Simulating vault deposit (eth_call)...");
     let sim_result = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         &format!(
             "Use eth_call_contract tool: \
              to=0x0000000000000000000000000000000000000001, \
@@ -132,8 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 8. Register agent on-chain via ERC-8004 ────────────────────────────
     println!("8. Registering agent on-chain (ERC-8004)...");
     let erc8004 = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         &format!(
             "Use eth_register_agent_8004 tool: \
              agent_address={}, metadata_uri=ipfs://QmYieldStrategyBase",
@@ -157,8 +162,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 10. Create on-chain attestation ────────────────────────────────────
     println!("10. Querying EAS attestation...");
     let attestation = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use eth_get_attestation tool: \
          uid=0x0000000000000000000000000000000000000000000000000000000000000001, \
          chain_id=8453",

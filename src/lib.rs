@@ -104,7 +104,6 @@ pub mod quota;
 pub mod rpc;
 pub mod seed_agent;
 pub mod settlement;
-pub mod sign;
 pub mod signer;
 pub mod skill;
 pub mod staking;
@@ -228,9 +227,3 @@ pub use lifecycle::LifecycleClient;
 pub use principal_chain::PrincipalChainClient;
 pub use quota::QuotaClient;
 pub use seed_agent::SeedAgentClient;
-pub use sign::{
-    AgentMessageFields, AgentSignatures, AgentSigningKeys, DpopKeyPair, DpopSession,
-    canonical_agent_message_hash, canonical_agent_message_preimage, create_dpop_proof,
-    create_dpop_session, generate_agent_signing_keys, generate_dpop_keypair, jwk_thumbprint,
-    sign_agent_message,
-};

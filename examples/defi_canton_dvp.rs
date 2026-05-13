@@ -39,21 +39,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &wallet.address,
         &["blockchain", "smart_contract", "data"],
     ).await?;
-    println!("   Agent ID: {}\n", agent.agent_id);
+    let agent_id = agent
+        .get("agent_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    println!("   Agent: {:#?}\n", agent);
 
     // ─── 3. Check Canton health & domains ───────────────────────────────────
     println!("3. Checking Canton network health...");
 
     let health = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_health tool",
     ).await?;
     println!("   Canton health: {} (signed: {})", health.message_id, health.signed);
 
     let domains = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_list_domains tool",
     ).await?;
     println!("   Domains: {}\n", domains.message_id);
@@ -62,8 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("4. Allocating DAML parties...");
 
     let buyer = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_allocate_party tool: \
          party_id_hint=buyer-fund-a, \
          display_name=Fund A (Buyer)",
@@ -71,8 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Buyer party:  {}", buyer.message_id);
 
     let seller = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_allocate_party tool: \
          party_id_hint=seller-bank-b, \
          display_name=Bank B (Seller)",
@@ -81,8 +86,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // List all parties
     let parties = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_list_parties tool",
     ).await?;
     println!("   All parties: {}\n", parties.message_id);
@@ -91,8 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("5. Tokenizing bond asset (CIP-56)...");
 
     let asset = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_create_asset tool: \
          owner=seller-bank-b, \
          asset_type=bond, \
@@ -105,15 +110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("6. Checking Canton Coin balances...");
 
     let buyer_balance = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_balance tool: party=buyer-fund-a",
     ).await?;
     println!("   Buyer balance:  {}", buyer_balance.message_id);
 
     let seller_balance = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_balance tool: party=seller-bank-b",
     ).await?;
     println!("   Seller balance: {}\n", seller_balance.message_id);
@@ -122,8 +127,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("7. Funding buyer with Canton Coin...");
 
     let transfer = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_transfer tool: \
          sender=seller-bank-b, \
          receiver=buyer-fund-a, \
@@ -135,8 +140,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("8. Executing atomic Delivery-vs-Payment...");
 
     let dvp = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_dvp_settle tool: \
          buyer=buyer-fund-a, \
          seller=seller-bank-b, \
@@ -150,8 +155,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("9. Creating a DAML escrow contract...");
 
     let escrow = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_submit_command tool: \
          command_type=create, \
          template_id=Tenzro.Escrow:EscrowContract, \
@@ -165,8 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("10. Querying active DAML contracts...");
 
     let contracts = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_list_contracts tool: \
          template_id=Tenzro.Escrow:EscrowContract, \
          party=buyer-fund-a",
@@ -177,8 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("11. Fetching contract events...");
 
     let events = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_events tool: \
          contract_id=escrow-001, \
          party=buyer-fund-a",
@@ -189,8 +194,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("12. Checking synchronizer fee schedule...");
 
     let fees = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_fee_schedule tool",
     ).await?;
     println!("   Fee schedule: {}\n", fees.message_id);
@@ -199,8 +204,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("13. Uploading custom DAR package...");
 
     let dar = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_upload_dar tool: \
          dar_path=/packages/tenzro-settlement-1.0.dar",
     ).await?;
@@ -210,8 +215,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("14. Looking up settlement transaction...");
 
     let tx = client.agent().send_message(
-        &agent.agent_id,
-        &agent.agent_id,
+        &agent_id,
+        &agent_id,
         "Use canton_get_transaction tool: \
          transaction_id=dvp-settle-001, \
          party=buyer-fund-a",
