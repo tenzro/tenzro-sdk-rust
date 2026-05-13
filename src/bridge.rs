@@ -145,13 +145,13 @@ impl BridgeClient {
         from_chain: &str,
         to_chain: &str,
         token: &str,
-    ) -> SdkResult<Vec<BridgeRoute>> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_getBridgeRoutes",
                 serde_json::json!([{
-                    "from_chain": from_chain,
-                    "to_chain": to_chain,
+                    "source_chain": from_chain,
+                    "dest_chain": to_chain,
                     "token": token,
                 }]),
             )
@@ -176,7 +176,7 @@ impl BridgeClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_adapters(&self) -> SdkResult<Vec<BridgeAdapter>> {
+    pub async fn list_adapters(&self) -> SdkResult<serde_json::Value> {
         self.rpc
             .call("tenzro_listBridgeAdapters", serde_json::json!([]))
             .await
