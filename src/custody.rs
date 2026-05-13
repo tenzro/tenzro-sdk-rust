@@ -135,7 +135,7 @@ impl CustodyClient {
     /// # Arguments
     ///
     /// * `wallet_id` - Wallet identifier
-    pub async fn get_key_shares(&self, wallet_id: &str) -> SdkResult<Vec<KeyShare>> {
+    pub async fn get_key_shares(&self, wallet_id: &str) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_getKeyShares",

@@ -133,8 +133,8 @@ impl NftClient {
                 serde_json::json!([{
                     "collection_id": collection_id,
                     "token_id": token_id,
-                    "recipient": recipient,
-                    "metadata_uri": metadata_uri,
+                    "to": recipient,
+                    "uri": metadata_uri,
                 }]),
             )
             .await
@@ -257,7 +257,7 @@ impl NftClient {
     pub async fn list_collections(
         &self,
         creator: Option<&str>,
-    ) -> SdkResult<Vec<CollectionInfo>> {
+    ) -> SdkResult<serde_json::Value> {
         let mut params = serde_json::Map::new();
 
         if let Some(c) = creator {

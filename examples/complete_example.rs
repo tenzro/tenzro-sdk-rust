@@ -127,13 +127,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         creator,
         &["nlp", "data"],
     ).await?;
-    println!("Registered agent: {} ({})", reg_response.agent_id, reg_response.tenzro_did);
+    let agent_id = reg_response
+        .get("agent_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    println!("Registered agent: {:#?}", reg_response);
 
     // Send a message to the same agent. Unsigned form requires an
     // enable_signing == false router; for production use
     // send_message_signed() with both Ed25519 and ML-DSA-65 signatures.
     let msg_response = agent
-        .send_message(&reg_response.agent_id, &reg_response.agent_id, "Analyze latest transactions")
+        .send_message(&agent_id, &agent_id, "Analyze latest transactions")
         .await?;
     println!("Message accepted: {} (signed: {})", msg_response.message_id, msg_response.signed);
     println!();

@@ -184,7 +184,7 @@ impl ContractClient {
         &self,
         function_sig: &str,
         args: Vec<serde_json::Value>,
-    ) -> SdkResult<String> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_encodeFunction",
@@ -224,12 +224,12 @@ impl ContractClient {
         &self,
         data: &str,
         output_types: Vec<&str>,
-    ) -> SdkResult<Vec<serde_json::Value>> {
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
                 "tenzro_decodeResult",
                 serde_json::json!([{
-                    "data": data,
+                    "data_hex": data,
                     "output_types": output_types,
                 }]),
             )

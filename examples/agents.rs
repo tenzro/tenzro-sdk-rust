@@ -30,11 +30,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register("Data Analyzer Agent", creator, &["nlp", "data"])
         .await?;
     println!("Agent registered successfully!");
-    println!("  Agent ID: {}", response.agent_id);
-    println!("  DID: {}", response.tenzro_did);
-    println!("  Wallet: {}", response.wallet_address);
-    println!("  Classical pubkey: {}\n", response.classical_public_key);
-    let agent_id = response.agent_id.clone();
+    println!("  Response: {:#?}\n", response);
+    let agent_id = response
+        .get("agent_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     // List all agents
     println!("Listing all registered agents...");

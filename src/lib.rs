@@ -65,11 +65,13 @@
 //! - [`contract`] -- Deploy contracts, ABI encoding
 //! - [`app`] -- AppClient for developer-funded patterns
 
+pub mod adaptive_burn;
 pub mod agent;
 pub mod agent_payments;
 pub mod ap2;
 pub mod app;
 pub mod auth;
+pub mod bond;
 pub mod bridge;
 pub mod canton;
 pub mod cct;
@@ -89,13 +91,18 @@ pub mod events;
 pub mod governance;
 pub mod identity;
 pub mod inference;
+pub mod insurance;
+pub mod lifecycle;
 pub mod marketplace;
 pub mod nanopayment;
 pub mod nft;
 pub mod passkey;
 pub mod payment;
+pub mod principal_chain;
 pub mod provider;
+pub mod quota;
 pub mod rpc;
+pub mod seed_agent;
 pub mod settlement;
 pub mod signer;
 pub mod skill;
@@ -213,3 +220,10 @@ pub use tool::ToolClient;
 pub use wallet::{AssetBalance, WalletBalance, WalletClient};
 pub use wormhole::{WormholeChainId, WormholeClient, WormholeTransferResult, WormholeVaaId};
 pub use zk::{CircuitInfo, ProvingKey, ZkClient, ZkProof, ZkVerifyResult};
+pub use adaptive_burn::AdaptiveBurnClient;
+pub use bond::BondClient;
+pub use insurance::InsuranceClient;
+pub use lifecycle::LifecycleClient;
+pub use principal_chain::PrincipalChainClient;
+pub use quota::QuotaClient;
+pub use seed_agent::SeedAgentClient;

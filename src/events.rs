@@ -81,7 +81,7 @@ impl EventClient {
         to_block: Option<u64>,
         event_type: Option<&str>,
         addresses: Option<&[&str]>,
-    ) -> SdkResult<Vec<Event>> {
+    ) -> SdkResult<serde_json::Value> {
         let mut params = serde_json::Map::new();
 
         if let Some(fb) = from_block {

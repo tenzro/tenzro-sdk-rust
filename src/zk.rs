@@ -171,7 +171,7 @@ impl ZkClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_circuits(&self) -> SdkResult<Vec<CircuitInfo>> {
+    pub async fn list_circuits(&self) -> SdkResult<serde_json::Value> {
         self.rpc
             .call("tenzro_listCircuits", serde_json::json!([]))
             .await
