@@ -170,8 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("12. Getting SPL token info...");
     let token_info = client.agent().send_message(
         &agent_id,
-        &agent_id,
-        "Use solana_get_token_info tool: \
+        &agent_id, "Use solana_get_token_info tool: \
          mint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     ).await?;
     println!("   USDC info: {}\n", token_info.message_id);
