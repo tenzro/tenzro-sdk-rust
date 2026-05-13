@@ -96,7 +96,7 @@ impl SettlementClient {
         self.rpc
             .call(
                 "tenzro_getSettlement",
-                serde_json::json!([receipt_id]),
+                serde_json::json!([{ "receipt_id": receipt_id }]),
             )
             .await
     }
