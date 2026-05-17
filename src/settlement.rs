@@ -96,7 +96,7 @@ impl SettlementClient {
         self.rpc
             .call(
                 "tenzro_getSettlement",
-                serde_json::json!([{ "receipt_id": receipt_id }]),
+                serde_json::json!([receipt_id]),
             )
             .await
     }
@@ -300,6 +300,71 @@ impl SettlementClient {
             .call(
                 "tenzro_getEscrow",
                 serde_json::json!({ "escrow_id": escrow_id_hex }),
+            )
+            .await
+    }
+
+    /// List every escrow funded by `payer`. Returns
+    /// `{payer, count, escrows: [...]}`. Backed by the
+    /// `escrow_payer:` secondary index in `CF_SETTLEMENTS`.
+    pub async fn list_escrows_by_payer(
+        &self,
+        payer: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        let payer: String = payer.into();
+        self.rpc
+            .call(
+                "tenzro_listEscrowsByPayer",
+                serde_json::json!({ "payer": payer }),
+            )
+            .await
+    }
+
+    /// List every escrow held for `payee`. Returns
+    /// `{payee, count, escrows: [...]}`. Backed by the
+    /// `escrow_payee:` secondary index in `CF_SETTLEMENTS`.
+    pub async fn list_escrows_by_payee(
+        &self,
+        payee: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        let payee: String = payee.into();
+        self.rpc
+            .call(
+                "tenzro_listEscrowsByPayee",
+                serde_json::json!({ "payee": payee }),
+            )
+            .await
+    }
+
+    /// Fetch a single channel dispute by id. Returns the full
+    /// `ChannelDispute` record (challenger, evidence blobs, status,
+    /// opened_at / timeout_at / resolved_at, resolution). Returns
+    /// JSON-RPC `-32004` if no dispute with that id exists.
+    pub async fn get_dispute(
+        &self,
+        dispute_id: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        let dispute_id: String = dispute_id.into();
+        self.rpc
+            .call(
+                "tenzro_getDispute",
+                serde_json::json!({ "dispute_id": dispute_id }),
+            )
+            .await
+    }
+
+    /// List every dispute (open or historical) attached to a channel.
+    /// Returns `{channel_id, count, disputes: [...]}`. Empty list is
+    /// not an error — a channel with no disputes returns `count: 0`.
+    pub async fn list_disputes_by_channel(
+        &self,
+        channel_id: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        let channel_id: String = channel_id.into();
+        self.rpc
+            .call(
+                "tenzro_listDisputesByChannel",
+                serde_json::json!({ "channel_id": channel_id }),
             )
             .await
     }

@@ -457,6 +457,81 @@ impl TenzroClient {
         crate::wormhole::WormholeClient::new(self.rpc.clone())
     }
 
+    /// Creates an Iroh client for the `tenzro_iroh_*` namespace —
+    /// endpoint id / ALPNs / publish / fetch over the shared
+    /// `IrohBackedResolver` (QUIC + Pkarr + iroh-blobs substrate that
+    /// also backs DA, training gradients, sealed shards, model fetch,
+    /// agent memory archive, and A2A-over-iroh).
+    pub fn iroh(&self) -> crate::iroh::IrohClient {
+        crate::iroh::IrohClient::new(self.rpc.clone())
+    }
+
+    /// Creates an adaptive-burn governance dial client — read-only
+    /// access to the current `BurnRateConfig`, rolling supply metrics,
+    /// recommended burn-rate action, and in-flight adaptive-burn
+    /// governance proposals.
+    pub fn adaptive_burn(&self) -> crate::adaptive_burn::AdaptiveBurnClient {
+        crate::adaptive_burn::AdaptiveBurnClient::new(self.rpc.clone())
+    }
+
+    /// Creates a validator registry read client — `getValidatorState`
+    /// / `listValidators` / `listActiveValidators`. Read-only;
+    /// validators self-register via the staking transaction path.
+    pub fn validators(&self) -> crate::validator::ValidatorClient {
+        crate::validator::ValidatorClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Tenzro Train read-side inspection client — list
+    /// active runs, fetch a single run by `task_id`, fetch a sealed
+    /// receipt, and fetch the installed Confidential-tier sealed-shard
+    /// manifest. Safe to expose to monitoring agents — no write surface.
+    pub fn training_inspection(&self) -> crate::training::TrainingInspectionClient {
+        crate::training::TrainingInspectionClient::new(self.rpc.clone())
+    }
+
+    /// Creates a validator-side SLA fault-detector inspection client.
+    /// Wraps `tenzro_slaIssueProbe`, `tenzro_slaListOutstandingProbes`,
+    /// and `tenzro_slaGetParams`. The probe-issuing call is
+    /// validator-only; on a non-validator node it returns
+    /// `-32000 SlaManager not initialized`.
+    pub fn sla(&self) -> crate::sla::SlaClient {
+        crate::sla::SlaClient::new(self.rpc.clone())
+    }
+
+    /// Creates a state-sync snapshot client. Wraps `tenzro_listSnapshots`,
+    /// `tenzro_getSnapshotManifest`, `tenzro_getSnapshotChunk`,
+    /// `tenzro_offerSnapshot`, and `tenzro_applySnapshotChunk`. Callers
+    /// MUST verify a manifest's `state_root_hex` against a trusted QC
+    /// at the same height before invoking `offer_snapshot` /
+    /// `apply_snapshot_chunk`.
+    pub fn snapshot(&self) -> crate::snapshot::SnapshotClient {
+        crate::snapshot::SnapshotClient::new(self.rpc.clone())
+    }
+
+    /// Creates a SeedAgent registry client (Spec 10) — read-only
+    /// access to the singleton `TreasuryEarmark`, registered `Charter`s,
+    /// provisioned `SeedAgentRecord`s, and network activity metrics.
+    pub fn seed_agent(&self) -> crate::seed_agent::SeedAgentClient {
+        crate::seed_agent::SeedAgentClient::new(self.rpc.clone())
+    }
+
+    /// Creates an ERC-7683 cross-chain intent client (Spec 4) —
+    /// origin-side order reads, destination-side fill writes, and
+    /// fill-record reads.
+    pub fn erc7683(&self) -> crate::erc7683::Erc7683Client {
+        crate::erc7683::Erc7683Client::new(self.rpc.clone())
+    }
+
+    /// Creates an EIP-7702 (Set EOA Account Code) helper client.
+    /// Wraps `tenzro_eip7702SigningHash`, `tenzro_eip7702BuildDesignator`,
+    /// `tenzro_eip7702ParseDesignator`, and `tenzro_eip7702ProtocolInfo`.
+    /// These are stateless helpers — the EOA's secp256k1 signature
+    /// and the on-chain installation of the designator are performed
+    /// out of band by the caller.
+    pub fn eip7702(&self) -> crate::eip7702::Eip7702Client {
+        crate::eip7702::Eip7702Client::new(self.rpc.clone())
+    }
+
     /// Creates a CCT (Chainlink Cross-Chain Token) client for inspecting
     /// the canonical TNZO CCT pool registry
     pub fn cct(&self) -> crate::cct::CctClient {
@@ -512,34 +587,6 @@ impl TenzroClient {
     /// JWT/DID revocation, and HITL approval flows.
     pub fn auth(&self) -> AuthClient {
         AuthClient::new(self.rpc.clone())
-    }
-
-    pub fn bond(&self) -> crate::bond::BondClient {
-        crate::bond::BondClient::new(self.rpc.clone())
-    }
-
-    pub fn insurance(&self) -> crate::insurance::InsuranceClient {
-        crate::insurance::InsuranceClient::new(self.rpc.clone())
-    }
-
-    pub fn lifecycle(&self) -> crate::lifecycle::LifecycleClient {
-        crate::lifecycle::LifecycleClient::new(self.rpc.clone())
-    }
-
-    pub fn principal_chain(&self) -> crate::principal_chain::PrincipalChainClient {
-        crate::principal_chain::PrincipalChainClient::new(self.rpc.clone())
-    }
-
-    pub fn quota(&self) -> crate::quota::QuotaClient {
-        crate::quota::QuotaClient::new(self.rpc.clone())
-    }
-
-    pub fn adaptive_burn(&self) -> crate::adaptive_burn::AdaptiveBurnClient {
-        crate::adaptive_burn::AdaptiveBurnClient::new(self.rpc.clone())
-    }
-
-    pub fn seed_agent(&self) -> crate::seed_agent::SeedAgentClient {
-        crate::seed_agent::SeedAgentClient::new(self.rpc.clone())
     }
 
     /// Returns the SDK configuration

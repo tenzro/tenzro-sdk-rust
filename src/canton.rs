@@ -63,7 +63,7 @@ impl CantonClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_domains(&self) -> SdkResult<serde_json::Value> {
+    pub async fn list_domains(&self) -> SdkResult<Vec<CantonDomain>> {
         self.rpc
             .call("tenzro_listCantonDomains", serde_json::json!([]))
             .await
@@ -103,7 +103,7 @@ impl CantonClient {
         template_id: Option<&str>,
         party: Option<&str>,
         limit: Option<u32>,
-    ) -> SdkResult<serde_json::Value> {
+    ) -> SdkResult<Vec<DamlContract>> {
         let mut params = serde_json::Map::new();
         if let Some(tid) = template_id {
             params.insert("template_id".to_string(), serde_json::json!(tid));

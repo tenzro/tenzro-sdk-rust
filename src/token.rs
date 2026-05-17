@@ -137,7 +137,7 @@ impl TokenClient {
         symbol: Option<&str>,
         evm_address: Option<&str>,
         token_id: Option<&str>,
-    ) -> SdkResult<serde_json::Value> {
+    ) -> SdkResult<TokenInfo> {
         let mut params = serde_json::Map::new();
 
         if let Some(s) = symbol {
@@ -439,51 +439,64 @@ pub struct TokenBalance {
     /// Account address
     #[serde(default)]
     pub address: String,
-    /// Native TNZO balance
+    /// Native TNZO balance (`{ balance_wei, decimals: 18 }`)
     #[serde(default)]
     pub native: NativeBalance,
-    /// EVM wTNZO ERC-20 balance
+    /// EVM wTNZO ERC-20 view — same wei as native
     #[serde(default)]
-    pub evm_wtnzo: VmBalance,
-    /// SVM wTNZO SPL balance (9 decimals)
+    pub evm_wtnzo: EvmBalance,
+    /// SVM wTNZO SPL view — 9-decimal truncation
     #[serde(default)]
-    pub svm_wtnzo: VmBalance,
-    /// DAML CIP-56 holding
+    pub svm_wtnzo: SvmBalance,
+    /// DAML CIP-56 holding view — same wei as native
     #[serde(default)]
     pub daml_holding: DamlBalance,
 }
 
-/// Native TNZO balance details
+/// Native TNZO balance details.
+///
+/// The RPC handler emits `{ "balance_wei": "...", "decimals": 18 }`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NativeBalance {
     /// Balance in wei (decimal string)
-    #[serde(default)]
-    pub balance: String,
+    #[serde(default, rename = "balance_wei")]
+    pub balance_wei: String,
     /// Number of decimals (18)
     #[serde(default)]
     pub decimals: u8,
-    /// Human-readable display (e.g., "100.000000 TNZO")
-    #[serde(default)]
-    pub display: String,
 }
 
-/// VM-specific token balance
+/// EVM wTNZO ERC-20 view (same wei as native, 18 decimals).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct VmBalance {
-    /// Balance in smallest unit (decimal string)
-    #[serde(default)]
-    pub balance: String,
-    /// Number of decimals
+pub struct EvmBalance {
+    /// Balance in wei (decimal string)
+    #[serde(default, rename = "balance_wei")]
+    pub balance_wei: String,
+    /// Number of decimals (18)
     #[serde(default)]
     pub decimals: u8,
 }
 
-/// DAML CIP-56 holding balance
+/// SVM wTNZO SPL view — 9-decimal truncation of native balance.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SvmBalance {
+    /// Balance in SPL base units (decimal string, 9 decimals)
+    #[serde(default, rename = "balance_base_units")]
+    pub balance_base_units: String,
+    /// Number of decimals (9)
+    #[serde(default)]
+    pub decimals: u8,
+}
+
+/// DAML CIP-56 holding view of native TNZO balance.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DamlBalance {
-    /// Holding amount as a DAML Decimal string
+    /// Holding amount in wei (decimal string)
+    #[serde(default, rename = "amount_wei")]
+    pub amount_wei: String,
+    /// Number of decimals (18)
     #[serde(default)]
-    pub amount: String,
+    pub decimals: u8,
 }
 
 /// Result from `wrap_tnzo`

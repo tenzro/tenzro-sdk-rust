@@ -68,13 +68,13 @@ impl DebridgeClient {
         &self,
         query: &str,
         chain_id: Option<u64>,
-    ) -> SdkResult<serde_json::Value> {
+    ) -> SdkResult<Vec<DebridgeTokenInfo>> {
         let mut params = serde_json::json!({
             "query": query,
         });
 
         if let Some(cid) = chain_id {
-            params["chain_id"] = serde_json::json!(cid.to_string());
+            params["chain_id"] = serde_json::json!(cid);
         }
 
         self.rpc
@@ -100,7 +100,7 @@ impl DebridgeClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_chains(&self) -> SdkResult<serde_json::Value> {
+    pub async fn get_chains(&self) -> SdkResult<Vec<DebridgeChain>> {
         self.rpc
             .call("tenzro_debridgeGetChains", serde_json::json!([]))
             .await
@@ -125,7 +125,7 @@ impl DebridgeClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_instructions(&self) -> SdkResult<serde_json::Value> {
+    pub async fn get_instructions(&self) -> SdkResult<DebridgeInstructions> {
         self.rpc
             .call("tenzro_debridgeGetInstructions", serde_json::json!([]))
             .await

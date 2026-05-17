@@ -1,33 +1,66 @@
 //! Task marketplace SDK for Tenzro Network
 //!
-//! This module provides task posting, listing, and quote submission functionality.
+//! Drives the full task-marketplace settlement cycle against the live RPC:
+//!
+//! ```text
+//!   post_task   →  quote_task   →  assign_task   →  complete_task
+//!   (poster)      (provider)      (locks price)    (transfers TNZO)
+//! ```
+//!
+//! `complete_task` is the moneyed step: the RPC handler issues a real
+//! `tenzro-token` transfer of the locked price (`quoted_price`, falling
+//! back to `max_price`) from poster to assignee through the unified
+//! token registry — observable as a balance delta via
+//! `eth_getBalance` / `tenzro_getTokenBalance`.
 
 use crate::error::{SdkError, SdkResult};
 use crate::rpc::RpcClient;
 use crate::types::{Address, TaskInfo, TaskQuote};
 use std::sync::Arc;
 
-/// Task client for task marketplace operations
+/// Task client for task marketplace operations.
 ///
 /// # Example
 ///
 /// ```no_run
 /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
+/// # use tenzro_sdk::types::Address;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # let config = SdkConfig::testnet();
 /// # let client = TenzroClient::connect(config).await?;
+/// # let poster: Address = unimplemented!();
+/// # let provider: Address = unimplemented!();
 /// let task_client = client.task();
 ///
-/// // Post a new task
+/// // 1. Poster opens a task
 /// let task = task_client.post_task(
 ///     "Analyze sentiment",
-///     "Analyze sentiment of customer reviews",
+///     "Score customer reviews",
 ///     "inference",
-///     1_000_000_000_000_000_000u128,
+///     1_000_000_000_000_000_000u128, // 1 TNZO max_price
 ///     "[\"Great product!\", \"Needs improvement\"]",
+///     &poster,
 /// ).await?;
-/// println!("Task posted: {}", task.task_id);
+///
+/// // 2. Provider quotes
+/// task_client.quote_task(
+///     &task.task_id,
+///     &provider,
+///     900_000_000_000_000_000u128, // 0.9 TNZO
+///     QuoteOpts::default(),
+/// ).await?;
+///
+/// // 3. Poster assigns
+/// task_client.assign_task(
+///     &task.task_id,
+///     &provider,
+///     Some(900_000_000_000_000_000u128),
+/// ).await?;
+///
+/// // 4. Settlement — real on-chain TNZO transfer poster → provider
+/// let receipt = task_client.complete_task(&task.task_id, "score=4.2/5").await?;
+/// println!("settled: {:?}", receipt.settlement);
 /// # Ok(())
 /// # }
 /// ```
@@ -36,13 +69,36 @@ pub struct TaskClient {
     rpc: Arc<RpcClient>,
 }
 
+/// Optional knobs for `quote_task`. The RPC fills sensible defaults
+/// (`model_id="any"`, `confidence=80`, `estimated_duration_secs=60`).
+#[derive(Clone, Default, Debug)]
+pub struct QuoteOpts {
+    pub model_id: Option<String>,
+    pub confidence: Option<u8>,
+    pub estimated_duration_secs: Option<u64>,
+    pub notes: Option<String>,
+}
+
+/// Receipt returned by `complete_task`. The `settlement` block carries
+/// the on-chain post-transfer balances reported by the RPC handler.
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct CompleteTaskReceipt {
+    pub task_id: String,
+    pub status: String,
+    #[serde(default)]
+    pub settlement: serde_json::Value,
+}
+
 impl TaskClient {
     /// Creates a new task client
     pub(crate) fn new(rpc: Arc<RpcClient>) -> Self {
         Self { rpc }
     }
 
-    /// Posts a new task to the marketplace
+    /// Post a new task to the marketplace.
+    ///
+    /// `poster` is the wallet that will be charged at settlement time
+    /// — it must already have a TNZO balance >= `max_price`.
     pub async fn post_task(
         &self,
         title: &str,
@@ -50,8 +106,9 @@ impl TaskClient {
         task_type: &str,
         max_price: u128,
         input: &str,
+        poster: &Address,
     ) -> SdkResult<TaskInfo> {
-        let poster_hex = format!("0x{}", hex::encode(Address::zero().as_bytes()));
+        let poster_hex = format!("0x{}", hex::encode(poster.as_bytes()));
         let value = self
             .rpc
             .call::<serde_json::Value>(
@@ -137,66 +194,30 @@ impl TaskClient {
         Ok(())
     }
 
-    /// Assigns a task to a specific agent
-    pub async fn assign_task(&self, task_id: &str, agent_id: &str) -> SdkResult<TaskInfo> {
-        let value: serde_json::Value = self
-            .rpc
-            .call(
-                "tenzro_assignTask",
-                serde_json::json!({
-                    "task_id": task_id,
-                    "agent_id": agent_id,
-                }),
-            )
-            .await?;
-
-        serde_json::from_value(value)
-            .map_err(|e| SdkError::RpcError(format!("Failed to parse TaskInfo: {}", e)))
-    }
-
-    /// Completes a task with the given result
-    pub async fn complete_task(
+    /// Submit a quote for a task. The `provider` address is the wallet
+    /// that will receive the TNZO at settlement time if assigned.
+    pub async fn quote_task(
         &self,
         task_id: &str,
-        result: &str,
-    ) -> SdkResult<TaskInfo> {
-        let value: serde_json::Value = self
-            .rpc
-            .call(
-                "tenzro_completeTask",
-                serde_json::json!({
-                    "task_id": task_id,
-                    "result": result,
-                }),
-            )
-            .await?;
-
-        serde_json::from_value(value)
-            .map_err(|e| SdkError::RpcError(format!("Failed to parse TaskInfo: {}", e)))
-    }
-
-    /// Submits a quote for a task
-    pub async fn submit_quote(
-        &self,
-        task_id: &str,
+        provider: &Address,
         price: u128,
-        model_id: &str,
-        estimated_secs: u64,
-        confidence: u8,
-        notes: Option<String>,
+        opts: QuoteOpts,
     ) -> SdkResult<TaskQuote> {
-        let provider_hex = format!("0x{}", hex::encode(Address::zero().as_bytes()));
+        let provider_hex = format!("0x{}", hex::encode(provider.as_bytes()));
         let mut params = serde_json::Map::new();
         params.insert("task_id".to_string(), serde_json::json!(task_id));
         params.insert("provider".to_string(), serde_json::json!(provider_hex));
         params.insert("price".to_string(), serde_json::json!(price.to_string()));
-        params.insert("model_id".to_string(), serde_json::json!(model_id));
-        params.insert(
-            "estimated_duration_secs".to_string(),
-            serde_json::json!(estimated_secs),
-        );
-        params.insert("confidence".to_string(), serde_json::json!(confidence));
-        if let Some(n) = notes {
+        if let Some(m) = opts.model_id {
+            params.insert("model_id".to_string(), serde_json::json!(m));
+        }
+        if let Some(c) = opts.confidence {
+            params.insert("confidence".to_string(), serde_json::json!(c));
+        }
+        if let Some(d) = opts.estimated_duration_secs {
+            params.insert("estimated_duration_secs".to_string(), serde_json::json!(d));
+        }
+        if let Some(n) = opts.notes {
             params.insert("notes".to_string(), serde_json::json!(n));
         }
 
@@ -207,6 +228,55 @@ impl TaskClient {
 
         serde_json::from_value(value)
             .map_err(|e| SdkError::RpcError(format!("Failed to parse TaskQuote: {}", e)))
+    }
+
+    /// Assign an open task to a provider wallet.
+    ///
+    /// `quoted_price` (if `Some`) locks the settlement amount; if
+    /// `None`, the task's `max_price` will be paid out at completion.
+    pub async fn assign_task(
+        &self,
+        task_id: &str,
+        provider: &Address,
+        quoted_price: Option<u128>,
+    ) -> SdkResult<serde_json::Value> {
+        let provider_hex = format!("0x{}", hex::encode(provider.as_bytes()));
+        let mut params = serde_json::Map::new();
+        params.insert("task_id".to_string(), serde_json::json!(task_id));
+        params.insert("provider".to_string(), serde_json::json!(provider_hex));
+        if let Some(p) = quoted_price {
+            params.insert("quoted_price".to_string(), serde_json::json!(p.to_string()));
+        }
+
+        self.rpc
+            .call("tenzro_assignTask", serde_json::Value::Object(params))
+            .await
+    }
+
+    /// Complete an assigned task and trigger on-chain settlement.
+    ///
+    /// The RPC handler transfers the locked price (`quoted_price` or
+    /// `max_price`) from poster to assignee via the token registry.
+    /// The returned `settlement` block contains the post-transfer
+    /// balances.
+    pub async fn complete_task(
+        &self,
+        task_id: &str,
+        output: &str,
+    ) -> SdkResult<CompleteTaskReceipt> {
+        let value: serde_json::Value = self
+            .rpc
+            .call(
+                "tenzro_completeTask",
+                serde_json::json!({
+                    "task_id": task_id,
+                    "output": output,
+                }),
+            )
+            .await?;
+
+        serde_json::from_value(value)
+            .map_err(|e| SdkError::RpcError(format!("Failed to parse CompleteTaskReceipt: {}", e)))
     }
 
     /// Updates an existing task

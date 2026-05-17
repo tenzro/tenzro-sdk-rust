@@ -61,7 +61,7 @@ impl AgentClient {
         name: &str,
         creator: &str,
         capabilities: &[&str],
-    ) -> SdkResult<serde_json::Value> {
+    ) -> SdkResult<RegisterAgentResponse> {
         self.rpc
             .call(
                 "tenzro_registerAgent",
@@ -489,6 +489,72 @@ impl AgentClient {
             .call(
                 "tenzro_agentHeartbeat",
                 serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
+
+    /// Fetch every capability attestation registered on this node for
+    /// `capability`. `capability` accepts the same short-form tags as
+    /// [`Self::register`] (`"nlp"`, `"vision"`, `"code"`, `"data"`,
+    /// `"blockchain"`, `"smart_contract"`, `"api_integration"`,
+    /// `"coordination"`) — anything else is treated as a `Custom` capability
+    /// with that name.
+    ///
+    /// When `verified_only` is `Some(true)` the node re-runs query-time
+    /// signature + expiry checks before returning (defence in depth on top
+    /// of submit-time verification per #52). Default is `false`.
+    ///
+    /// Returns `{capability, verified_only, attestations: [...], total}`.
+    pub async fn get_capability_attestations(
+        &self,
+        capability: &str,
+        verified_only: Option<bool>,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_getCapabilityAttestations",
+                serde_json::json!({
+                    "capability": capability,
+                    "verified_only": verified_only.unwrap_or(false),
+                }),
+            )
+            .await
+    }
+
+    /// Fetch every capability attestation issued for a specific agent. The
+    /// reply includes the agent's registered capability list, the full
+    /// attestation envelopes, and the agent's registered wallet address
+    /// (used by the self-attestation guard).
+    ///
+    /// Returns `{agent_id, capabilities, attestations: [...],
+    /// total_attestations, registered_address}`.
+    pub async fn get_agent_capability_attestations(
+        &self,
+        agent_id: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_getAgentCapabilityAttestations",
+                serde_json::json!({ "agent_id": agent_id }),
+            )
+            .await
+    }
+
+    /// Pick the "best" agent on this node for `capability`. Selection
+    /// prefers the most recent TEE-backed attestation, falling back to any
+    /// agent that has registered the capability. `capability` is parsed
+    /// with the same short-form/`Custom` rules as
+    /// [`Self::get_capability_attestations`].
+    ///
+    /// Returns `{capability, best_agent: Option<String>, total_candidates}`.
+    pub async fn find_best_agent_for_capability(
+        &self,
+        capability: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_findBestAgentForCapability",
+                serde_json::json!({ "capability": capability }),
             )
             .await
     }

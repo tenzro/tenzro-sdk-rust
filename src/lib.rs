@@ -71,7 +71,6 @@ pub mod agent_payments;
 pub mod ap2;
 pub mod app;
 pub mod auth;
-pub mod bond;
 pub mod bridge;
 pub mod canton;
 pub mod cct;
@@ -84,6 +83,8 @@ pub mod cortex;
 pub mod crypto;
 pub mod custody;
 pub mod debridge;
+pub mod eip7702;
+pub mod erc7683;
 pub mod erc7802;
 pub mod erc8004;
 pub mod error;
@@ -91,21 +92,20 @@ pub mod events;
 pub mod governance;
 pub mod identity;
 pub mod inference;
-pub mod insurance;
-pub mod lifecycle;
+pub mod iroh;
 pub mod marketplace;
 pub mod nanopayment;
 pub mod nft;
 pub mod passkey;
 pub mod payment;
-pub mod principal_chain;
 pub mod provider;
-pub mod quota;
 pub mod rpc;
 pub mod seed_agent;
 pub mod settlement;
 pub mod signer;
 pub mod skill;
+pub mod sla;
+pub mod snapshot;
 pub mod staking;
 pub mod streaming;
 pub mod svm_cross_vm;
@@ -113,7 +113,9 @@ pub mod task;
 pub mod tee;
 pub mod token;
 pub mod tool;
+pub mod training;
 pub mod types;
+pub mod validator;
 pub mod wallet;
 pub mod wormhole;
 pub mod zk;
@@ -144,8 +146,8 @@ pub use app::{
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;
 pub use auth::{
-    ApprovalDecision, AuthClient, IntrospectionResult, OAuthDiscovery, OnboardSession,
-    PendingApprovals, RefreshedToken, RevokeResponse, TokenExchangeResult,
+    ApprovalDecision, ApprovalRecord, AuthClient, IntrospectionResult, OAuthDiscovery,
+    OnboardSession, PendingApprovals, RefreshedToken, RevokeResponse, TokenExchangeResult,
 };
 pub use ap2::{
     Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
@@ -172,14 +174,23 @@ pub use debridge::{
     DebridgeChain, DebridgeClient, DebridgeInstructions, DebridgeSwapResult, DebridgeTokenInfo,
     DebridgeTxData,
 };
+pub use adaptive_burn::AdaptiveBurnClient;
+pub use eip7702::{
+    Eip7702Client, Eip7702Designator, Eip7702ParsedDesignator, Eip7702ProtocolInfo,
+    Eip7702SigningHash,
+};
+pub use erc7683::{Erc7683Client, Erc7683Output, Erc7683OrderList};
 pub use erc7802::Erc7802Client;
 pub use erc8004::{
     Erc8004Agent, Erc8004AgentId, Erc8004Calldata, Erc8004Client, Erc8004Metadata,
 };
-pub use events::{Event, EventClient, Subscription, WebhookRegistration};
+pub use events::{Event, EventClient, Subscription, WebhookDeletion, WebhookList, WebhookRegistration};
 pub use governance::{GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower};
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};
 pub use inference::InferenceClient;
+pub use iroh::{
+    IrohAlpnEntry, IrohAlpnList, IrohClient, IrohEndpointId, IrohInfo, IrohPublishResult,
+};
 pub use marketplace::MarketplaceClient;
 pub use nanopayment::NanopaymentClient;
 pub use nft::{CollectionInfo, MintResult, NftClient, NftInfo, NftTransferResult, PointerResult};
@@ -192,6 +203,7 @@ pub use payment::{
     GatewayInfo, PaymentChallenge, PaymentClient, PaymentReceipt, PaymentSession,
     X402SchemeDescriptor, X402SchemeRegistry,
 };
+pub use seed_agent::SeedAgentClient;
 pub use provider::{
     ChatMessage, ChatResponse, DownloadProgress, HardwareProfile, ModelEndpoint, ModelLoad,
     ParticipateResponse, ProviderClient, ProviderStats,
@@ -204,6 +216,13 @@ pub use signer::{
     ValidatorError,
 };
 pub use skill::SkillClient;
+pub use sla::{
+    SlaClient, SlaOutstandingProbe, SlaOutstandingProbes, SlaParams, SlaProbeIssued,
+};
+pub use snapshot::{
+    SnapshotChunk, SnapshotChunkApplied, SnapshotClient, SnapshotList, SnapshotManifest,
+    SnapshotOfferAccepted, SnapshotSummary,
+};
 pub use staking::StakingClient;
 pub use streaming::{
     Event as StreamEvent, SseConnection, StreamResult, StreamingClient, SubscriptionHandle,
@@ -217,13 +236,13 @@ pub use token::{
     WTNZO_EVM_ADDRESS,
 };
 pub use tool::ToolClient;
+pub use training::{
+    ListTrainingRunsResult, SealedDatasetManifest, SealedShardEnvelope, TrainingInspectionClient,
+    TrainingReceipt, TrainingRun, TrainingRunStatus,
+};
+pub use validator::{
+    ListValidatorsResult, ValidatorClient, ValidatorRegistryEntry, ValidatorStatus,
+};
 pub use wallet::{AssetBalance, WalletBalance, WalletClient};
 pub use wormhole::{WormholeChainId, WormholeClient, WormholeTransferResult, WormholeVaaId};
 pub use zk::{CircuitInfo, ProvingKey, ZkClient, ZkProof, ZkVerifyResult};
-pub use adaptive_burn::AdaptiveBurnClient;
-pub use bond::BondClient;
-pub use insurance::InsuranceClient;
-pub use lifecycle::LifecycleClient;
-pub use principal_chain::PrincipalChainClient;
-pub use quota::QuotaClient;
-pub use seed_agent::SeedAgentClient;

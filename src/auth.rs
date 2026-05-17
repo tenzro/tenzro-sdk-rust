@@ -223,6 +223,15 @@ impl AuthClient {
         self.rpc.call("tenzro_decideApproval", params).await
     }
 
+    /// Fetch a single approval record by id. The engine lazy-transitions
+    /// an expired `Pending` record to `Expired` on this read path, so a
+    /// returned `Pending` record is guaranteed to still be live.
+    /// Returns JSON-RPC `-32000` if the id is unknown.
+    pub async fn get_approval(&self, approval_id: &str) -> SdkResult<ApprovalRecord> {
+        let params = serde_json::json!({ "approval_id": approval_id });
+        self.rpc.call("tenzro_getApproval", params).await
+    }
+
     /// **RFC 8693 OAuth 2.0 Token Exchange.** Exchange a parent JWT for a
     /// narrower child JWT bound to a different DPoP key, with a strictly
     /// subset of the parent's RAR grants and AAP capabilities. The child
@@ -379,6 +388,41 @@ pub struct ApprovalDecision {
     /// Echo of the approval id.
     #[serde(default)]
     pub approval_id: String,
+}
+
+/// Result of `get_approval` — a single approval record. Matches the
+/// wire shape produced by `approval_to_json` in `tenzro-node`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalRecord {
+    /// Engine-assigned unique identifier for this approval.
+    #[serde(default)]
+    pub approval_id: String,
+    /// DID that initiated the request and is waiting on a decision.
+    #[serde(default)]
+    pub requester_did: String,
+    /// DID that must approve or deny the request.
+    #[serde(default)]
+    pub approver_did: String,
+    /// Creation time (Unix epoch, ms).
+    #[serde(default)]
+    pub created_at_ms: u64,
+    /// Hard expiry — past this point the engine lazy-transitions the
+    /// record to `Expired` on the next read.
+    #[serde(default)]
+    pub expires_at_ms: u64,
+    /// Lifecycle state as a debug-printed enum string
+    /// (`"Pending"` / `"Approved"` / `"Denied"` / `"Expired"`).
+    #[serde(default)]
+    pub status: String,
+    /// Decision timestamp (Unix epoch, ms). `None` while still pending.
+    #[serde(default)]
+    pub decided_at_ms: Option<u64>,
+    /// Short human-readable summary of the request.
+    #[serde(default)]
+    pub summary: String,
+    /// Action identifier (free-form, e.g. `"wallet.transfer"`).
+    #[serde(default)]
+    pub action: String,
 }
 
 /// Result of [`AuthClient::exchange_token`] — the issued child JWT and

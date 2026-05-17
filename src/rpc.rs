@@ -17,19 +17,15 @@ struct RpcRequest<'a> {
     id: u64,
 }
 
-/// JSON-RPC 2.0 response (raw — result deserialized lazily so we can
-/// synthesize `Null` when the server omits `result` for not-found queries)
+/// JSON-RPC 2.0 response
 #[derive(Debug, Deserialize)]
-struct RpcResponse {
+struct RpcResponse<T> {
     #[allow(dead_code)]
-    #[serde(default)]
     jsonrpc: String,
-    #[serde(default)]
-    result: Option<serde_json::Value>,
+    result: Option<T>,
     error: Option<RpcError>,
     #[allow(dead_code)]
-    #[serde(default)]
-    id: serde_json::Value,
+    id: u64,
 }
 
 /// JSON-RPC 2.0 error
@@ -116,7 +112,7 @@ impl RpcClient {
             )));
         }
 
-        let rpc_response: RpcResponse = response.json().await.map_err(|e| {
+        let rpc_response: RpcResponse<T> = response.json().await.map_err(|e| {
             SdkError::RpcError(format!("Failed to parse response: {}", e))
         })?;
 
@@ -127,13 +123,9 @@ impl RpcClient {
             )));
         }
 
-        // Server may omit `result` for not-found / no-value responses; treat
-        // that as a null result so callers using `serde_json::Value` (or
-        // Option<T>) get a usable value instead of an error.
-        let result_val = rpc_response.result.unwrap_or(serde_json::Value::Null);
-        serde_json::from_value::<T>(result_val).map_err(|e| {
-            SdkError::RpcError(format!("Failed to parse response: {}", e))
-        })
+        rpc_response
+            .result
+            .ok_or_else(|| SdkError::RpcError("Response missing result field".to_string()))
     }
 
     /// Makes an HTTP GET request to the Web API (non-RPC)

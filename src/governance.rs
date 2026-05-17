@@ -190,7 +190,7 @@ impl GovernanceClient {
         self.rpc
             .call(
                 "tenzro_getVotingPower",
-                serde_json::json!([{ "address": address }]),
+                serde_json::json!([address]),
             )
             .await
     }

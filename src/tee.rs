@@ -87,7 +87,7 @@ impl TeeClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_attestation(&self, tee_type: &str) -> SdkResult<serde_json::Value> {
+    pub async fn get_attestation(&self, tee_type: &str) -> SdkResult<AttestationResult> {
         self.rpc
             .call(
                 "tenzro_getAttestation",
@@ -181,7 +181,7 @@ impl TeeClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_tee_providers(&self) -> SdkResult<serde_json::Value> {
+    pub async fn list_tee_providers(&self) -> SdkResult<Vec<TeeProvider>> {
         self.rpc
             .call("tenzro_listTeeProviders", serde_json::json!([]))
             .await

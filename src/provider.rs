@@ -211,8 +211,11 @@ impl ProviderClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_hardware_profile(&self) -> SdkResult<serde_json::Value> {
-        self.rpc.call("tenzro_getHardwareProfile", json!([])).await
+    pub async fn get_hardware_profile(&self) -> SdkResult<HardwareProfile> {
+        let result = self.rpc.call("tenzro_getHardwareProfile", json!([])).await?;
+        serde_json::from_value(result).map_err(|e| {
+            SdkError::RpcError(format!("Failed to parse hardware profile: {}", e))
+        })
     }
 
     /// Set node role (validator, provider, light_client)

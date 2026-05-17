@@ -81,7 +81,7 @@ impl EventClient {
         to_block: Option<u64>,
         event_type: Option<&str>,
         addresses: Option<&[&str]>,
-    ) -> SdkResult<serde_json::Value> {
+    ) -> SdkResult<Vec<Event>> {
         let mut params = serde_json::Map::new();
 
         if let Some(fb) = from_block {
@@ -179,19 +179,55 @@ impl EventClient {
         event_types: Option<&[&str]>,
         secret: Option<&str>,
     ) -> SdkResult<WebhookRegistration> {
-        let mut params = serde_json::json!({
-            "url": url,
-        });
+        self.register_webhook_with_addresses(url, event_types, None, secret)
+            .await
+    }
 
+    /// Register a webhook with an optional `addresses` filter. When
+    /// `addresses` is non-empty, the node only delivers events whose
+    /// `addresses` array intersects this list. Use this for per-tenant /
+    /// per-user webhook subscriptions.
+    ///
+    /// `secret` must be at least 16 characters — the node refuses
+    /// shorter secrets. Webhook URL must be `https://`.
+    pub async fn register_webhook_with_addresses(
+        &self,
+        url: &str,
+        event_types: Option<&[&str]>,
+        addresses: Option<&[&str]>,
+        secret: Option<&str>,
+    ) -> SdkResult<WebhookRegistration> {
+        let mut params = serde_json::json!({ "url": url });
         if let Some(types) = event_types {
             params["event_types"] = serde_json::json!(types);
+        }
+        if let Some(addrs) = addresses {
+            params["addresses"] = serde_json::json!(addrs);
         }
         if let Some(s) = secret {
             params["secret"] = serde_json::json!(s);
         }
-
         self.rpc
             .call("tenzro_registerWebhook", serde_json::json!([params]))
+            .await
+    }
+
+    /// List every registered webhook. Returns each webhook's id, url,
+    /// active flag, event_types/addresses filters, and delivery counters.
+    /// Secret hashes are NOT returned — secrets are write-only.
+    pub async fn list_webhooks(&self) -> SdkResult<WebhookList> {
+        self.rpc
+            .call("tenzro_listWebhooks", serde_json::json!([{}]))
+            .await
+    }
+
+    /// Delete a webhook by id. Returns `-32602` if the id is unknown.
+    pub async fn delete_webhook(&self, webhook_id: &str) -> SdkResult<WebhookDeletion> {
+        self.rpc
+            .call(
+                "tenzro_deleteWebhook",
+                serde_json::json!([{ "webhook_id": webhook_id }]),
+            )
             .await
     }
 }
@@ -248,10 +284,42 @@ pub struct WebhookRegistration {
     /// Event types the webhook receives
     #[serde(default)]
     pub event_types: Vec<String>,
-    /// Whether HMAC signing is enabled
+    /// Address filter (empty = no address restriction)
     #[serde(default)]
-    pub signed: bool,
-    /// Operation status
+    pub addresses: Vec<String>,
+    /// Whether the webhook is currently active. Defaults to `true`
+    /// on freshly-registered hooks; `list_webhooks` returns the
+    /// stored flag.
+    #[serde(default = "default_true")]
+    pub active: bool,
+    /// Cumulative deliveries attempted by the node.
+    #[serde(default)]
+    pub total_deliveries: u64,
+    /// Cumulative deliveries that returned a non-2xx response or
+    /// timed out.
+    #[serde(default)]
+    pub failed_deliveries: u64,
+    /// Operation status (set on register/delete; empty on list).
+    #[serde(default)]
+    pub status: String,
+}
+
+fn default_true() -> bool { true }
+
+/// Result of `tenzro_listWebhooks`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookList {
+    #[serde(default)]
+    pub webhooks: Vec<WebhookRegistration>,
+    #[serde(default)]
+    pub total: usize,
+}
+
+/// Result of `tenzro_deleteWebhook`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookDeletion {
+    #[serde(default)]
+    pub webhook_id: String,
     #[serde(default)]
     pub status: String,
 }
