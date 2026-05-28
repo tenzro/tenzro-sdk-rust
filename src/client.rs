@@ -325,6 +325,19 @@ impl TenzroClient {
         parse_hex_u64(&hex)
     }
 
+    /// Gets the libp2p network metrics snapshot.
+    ///
+    /// Returns counters and gauges from `tenzro_network::NetworkMetrics`,
+    /// including `peer_address_migrations_total` for QUIC path migration /
+    /// mobile network switch / NAT rebinding observability.
+    pub async fn network_stats(&self) -> SdkResult<NetworkStats> {
+        let v: serde_json::Value = self
+            .rpc
+            .call("tenzro_getNetworkStats", serde_json::json!([]))
+            .await?;
+        serde_json::from_value(v).map_err(SdkError::from)
+    }
+
     /// Creates a wallet client for wallet operations
     pub fn wallet(&self) -> WalletClient {
         WalletClient::new(self.rpc.clone())
@@ -652,6 +665,54 @@ pub struct NodeInfo {
     pub peer_count: u32,
     /// Whether the node is currently syncing
     pub syncing: bool,
+}
+
+/// Snapshot of libp2p network metrics exposed by `tenzro_getNetworkStats`.
+///
+/// All counter fields are monotonically-increasing totals since process start.
+/// Gauge fields (`peers_connected`, `kad_routing_table_size`,
+/// `gossipsub_mesh_size`) are instantaneous values.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStats {
+    /// `false` when the network service has not been initialized.
+    pub available: bool,
+    /// Set when `available` is `false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub events_dropped: u64,
+    #[serde(default)]
+    pub dials_rejected_per_ip: u64,
+    #[serde(default)]
+    pub dials_rejected_global: u64,
+    #[serde(default)]
+    pub gossip_rejected_validator_only: u64,
+    #[serde(default)]
+    pub gossip_rejected_invalid: u64,
+    #[serde(default)]
+    pub gossip_rejected_duplicate: u64,
+    #[serde(default)]
+    pub gossip_published: u64,
+    #[serde(default)]
+    pub gossip_accepted: u64,
+    #[serde(default)]
+    pub connections_established: u64,
+    #[serde(default)]
+    pub connections_inbound_total: u64,
+    #[serde(default)]
+    pub connections_outbound_total: u64,
+    #[serde(default)]
+    pub peers_banned: u64,
+    #[serde(default)]
+    pub peers_connected: i64,
+    #[serde(default)]
+    pub kad_routing_table_size: i64,
+    #[serde(default)]
+    pub gossipsub_mesh_size: i64,
+    /// Counter incremented on every observed remote-multiaddr change for an
+    /// already-known peer (QUIC path migration, mobile network switch, NAT rebinding).
+    #[serde(default)]
+    pub peer_address_migrations_total: u64,
 }
 
 /// Block information
