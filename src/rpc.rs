@@ -92,6 +92,16 @@ impl RpcClient {
         {
             req = req.header("DPoP", dpop);
         }
+        // API key for scope-gated namespaces (currently `tenzro_*Canton*`).
+        // The operator (RPC node) holds the upstream credentials (Auth0 for
+        // Canton devnet) and proxies on the caller's behalf. Callers present
+        // a `tnz_<base64url>` key with the required scope; the node verifies
+        // against `CF_API_KEYS` and forwards to the upstream.
+        if let Ok(key) = std::env::var("TENZRO_API_KEY")
+            && !key.is_empty()
+        {
+            req = req.header("X-Tenzro-Api-Key", key);
+        }
 
         let response = req
             .send()

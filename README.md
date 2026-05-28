@@ -10,7 +10,7 @@ The official Rust SDK for [Tenzro Network](https://tenzro.com) -- build AI-nativ
 
 ```toml
 [dependencies]
-tenzro-sdk = "0.2"
+tenzro-sdk = "0.3"
 ```
 
 Or:

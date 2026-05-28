@@ -25,10 +25,10 @@ use std::sync::Arc;
 /// # let client = TenzroClient::connect(config).await?;
 /// let canton = client.canton();
 ///
-/// // List available Canton domains
+/// // List available Canton synchronizer domains
 /// let domains = canton.list_domains().await?;
-/// for domain in &domains {
-///     println!("Domain: {} ({})", domain.domain_id, domain.status);
+/// for domain in &domains.domains {
+///     println!("Domain: {} ({})", domain.id, domain.name);
 /// }
 /// # Ok(())
 /// # }
@@ -44,156 +44,165 @@ impl CantonClient {
         Self { rpc }
     }
 
-    /// Lists all available Canton synchronizer domains
+    /// Lists configured Canton synchronizer domains on this node
     ///
-    /// Returns metadata about each domain including its ID, alias, status,
-    /// and connected participants.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let canton = client.canton();
-    /// let domains = canton.list_domains().await?;
-    /// println!("Found {} Canton domains", domains.len());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn list_domains(&self) -> SdkResult<Vec<CantonDomain>> {
+    /// Returns the `{enabled, domains}` envelope from the node. When Canton is
+    /// not enabled the call still succeeds with `enabled: false` and an empty
+    /// `domains` array — callers should check `enabled` before proceeding.
+    pub async fn list_domains(&self) -> SdkResult<CantonDomainList> {
         self.rpc
-            .call("tenzro_listCantonDomains", serde_json::json!([]))
+            .call("tenzro_listCantonDomains", serde_json::json!({}))
             .await
     }
 
-    /// Lists DAML contracts, optionally filtered by template ID and party
+    /// Queries active DAML contracts on the shared Canton domain.
     ///
-    /// Queries the Canton 3.x JSON Ledger API v2 active-contracts endpoint
-    /// with `identifierFilter` for template-based filtering.
-    ///
-    /// # Arguments
-    ///
-    /// * `template_id` - Optional DAML template ID to filter by (passed as `identifierFilter`)
-    /// * `party` - Optional party ID to filter active contracts for
-    /// * `limit` - Optional limit on number of contracts returned
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let canton = client.canton();
-    /// let contracts = canton.list_contracts(
-    ///     Some("Tenzro.Escrow:EscrowContract"),
-    ///     Some("party::tenzro-validator"),
-    ///     Some(50),
-    /// ).await?;
-    /// println!("Found {} contracts", contracts.len());
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// The Canton v2 active-contracts endpoint requires at least one template
+    /// id. Pass either a single `template_id` or a list via the
+    /// [`DamlContractsQuery`] builder. The optional `query` object is applied
+    /// client-side against `createArguments` as a structural filter.
     pub async fn list_contracts(
         &self,
-        template_id: Option<&str>,
-        party: Option<&str>,
-        limit: Option<u32>,
-    ) -> SdkResult<Vec<DamlContract>> {
+        query: DamlContractsQuery,
+    ) -> SdkResult<DamlContractsResponse> {
         let mut params = serde_json::Map::new();
-        if let Some(tid) = template_id {
-            params.insert("template_id".to_string(), serde_json::json!(tid));
+        if !query.template_ids.is_empty() {
+            params.insert(
+                "template_ids".to_string(),
+                serde_json::json!(query.template_ids),
+            );
         }
-        if let Some(p) = party {
-            params.insert("party".to_string(), serde_json::json!(p));
+        if let Some(filter) = query.query {
+            params.insert("query".to_string(), filter);
         }
-        if let Some(lim) = limit {
-            params.insert("limit".to_string(), serde_json::json!(lim));
-        }
-
         self.rpc
             .call(
                 "tenzro_listDamlContracts",
-                serde_json::json!([serde_json::Value::Object(params)]),
+                serde_json::Value::Object(params),
             )
             .await
     }
 
-    /// Submits a DAML command (create or exercise) to a Canton domain
+    /// Submits a DAML `create` command on the shared Canton domain.
     ///
-    /// Uses the Canton 3.x JSON Ledger API v2 `submit-and-wait-for-transaction`
-    /// endpoint (not `submit-and-wait-for-transaction-tree`).
-    ///
-    /// # Arguments
-    ///
-    /// * `params` - The DAML command parameters
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
-    /// # use tenzro_sdk::canton::DamlCommandParams;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let config = SdkConfig::testnet();
-    /// # let client = TenzroClient::connect(config).await?;
-    /// let canton = client.canton();
-    /// let result = canton.submit_command(DamlCommandParams {
-    ///     domain_id: "domain-1".to_string(),
-    ///     command_type: "create".to_string(),
-    ///     template_id: "Tenzro.Escrow:EscrowContract".to_string(),
-    ///     party: "party::tenzro-validator".to_string(),
-    ///     payload: serde_json::json!({"payer": "alice", "payee": "bob", "amount": 1000}),
-    ///     contract_id: None,
-    ///     choice: None,
-    /// }).await?;
-    /// println!("Command result: {}", result.status);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn submit_command(
+    /// The node proxies the call to the configured Canton participant using
+    /// its own bearer JWT — callers never see the Auth0 secret.
+    pub async fn create_contract(
         &self,
-        params: DamlCommandParams,
+        template_id: &str,
+        create_arguments: serde_json::Value,
     ) -> SdkResult<DamlCommandResult> {
         self.rpc
             .call(
                 "tenzro_submitDamlCommand",
-                serde_json::json!([{
-                    "domain_id": params.domain_id,
-                    "command_type": params.command_type,
-                    "template_id": params.template_id,
-                    "party": params.party,
-                    "payload": params.payload,
-                    "contract_id": params.contract_id,
-                    "choice": params.choice,
-                }]),
+                serde_json::json!({
+                    "command_type": "create",
+                    "template_id": template_id,
+                    "create_arguments": create_arguments,
+                }),
+            )
+            .await
+    }
+
+    /// Submits a DAML `exercise` command on an existing contract.
+    pub async fn exercise_choice(
+        &self,
+        template_id: &str,
+        contract_id: &str,
+        choice: &str,
+        choice_argument: serde_json::Value,
+    ) -> SdkResult<DamlCommandResult> {
+        self.rpc
+            .call(
+                "tenzro_submitDamlCommand",
+                serde_json::json!({
+                    "command_type": "exercise",
+                    "template_id": template_id,
+                    "contract_id": contract_id,
+                    "choice": choice,
+                    "choice_argument": choice_argument,
+                }),
             )
             .await
     }
 }
 
+/// Response envelope for `tenzro_listCantonDomains`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CantonDomainList {
+    /// Whether Canton/DAML is enabled on this node
+    #[serde(default)]
+    pub enabled: bool,
+    /// Configured synchronizer domains
+    #[serde(default)]
+    pub domains: Vec<CantonDomain>,
+    /// Optional human-readable status message (present when `enabled` is false)
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
 /// A Canton synchronizer domain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CantonDomain {
-    /// Domain identifier
+    /// Synchronizer / domain identifier
     #[serde(default)]
-    pub domain_id: String,
-    /// Human-readable alias
+    pub id: String,
+    /// Human-readable domain name
     #[serde(default)]
-    pub alias: String,
-    /// Domain status (active, inactive, etc.)
+    pub name: String,
+    /// Native settlement token for this domain
     #[serde(default)]
-    pub status: String,
-    /// Number of connected participants
+    pub native_token: String,
+    /// Expected finality time in seconds
     #[serde(default)]
-    pub participant_count: u32,
-    /// Sequencer endpoint URL
+    pub finality_time_secs: u64,
+}
+
+/// Query parameters for [`CantonClient::list_contracts`]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DamlContractsQuery {
+    /// One or more DAML template ids (required — at least one)
+    pub template_ids: Vec<String>,
+    /// Optional structural filter applied against `createArguments`
+    pub query: Option<serde_json::Value>,
+}
+
+impl DamlContractsQuery {
+    /// Build a query for a single template id
+    pub fn for_template(template_id: impl Into<String>) -> Self {
+        Self {
+            template_ids: vec![template_id.into()],
+            query: None,
+        }
+    }
+
+    /// Build a query for multiple template ids
+    pub fn for_templates(template_ids: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            template_ids: template_ids.into_iter().collect(),
+            query: None,
+        }
+    }
+
+    /// Attach a structural filter
+    pub fn with_query(mut self, query: serde_json::Value) -> Self {
+        self.query = Some(query);
+        self
+    }
+}
+
+/// Response envelope for `tenzro_listDamlContracts`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DamlContractsResponse {
+    /// Active contracts matching the query
     #[serde(default)]
-    pub sequencer_url: String,
+    pub contracts: Vec<DamlContract>,
+    /// Template ids that were queried (echoed for traceability)
+    #[serde(default)]
+    pub template_ids: Vec<String>,
+    /// Structural filter that was applied (echoed for traceability)
+    #[serde(default)]
+    pub query: serde_json::Value,
 }
 
 /// A DAML contract on a Canton domain
@@ -202,58 +211,36 @@ pub struct DamlContract {
     /// Contract ID
     #[serde(default)]
     pub contract_id: String,
-    /// DAML template ID (e.g., "Tenzro.Escrow:EscrowContract")
+    /// DAML template ID (e.g., "Tenzro.Workflow:WorkflowAnchor")
     #[serde(default)]
     pub template_id: String,
     /// Contract payload (create arguments)
     #[serde(default)]
     pub payload: serde_json::Value,
-    /// Signatories
-    #[serde(default)]
-    pub signatories: Vec<String>,
-    /// Observers
-    #[serde(default)]
-    pub observers: Vec<String>,
-    /// Whether the contract is active
-    #[serde(default)]
-    pub active: bool,
-}
-
-/// Parameters for submitting a DAML command
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DamlCommandParams {
-    /// Canton domain to submit to
-    pub domain_id: String,
-    /// Command type: "create" or "exercise"
-    pub command_type: String,
-    /// DAML template ID
-    pub template_id: String,
-    /// Submitting party
-    pub party: String,
-    /// Command payload (create arguments or exercise arguments)
-    pub payload: serde_json::Value,
-    /// Contract ID (required for exercise commands)
-    pub contract_id: Option<String>,
-    /// Choice name (required for exercise commands)
-    pub choice: Option<String>,
 }
 
 /// Result from submitting a DAML command
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DamlCommandResult {
-    /// Command ID
+    /// "create" or "exercise"
     #[serde(default)]
-    pub command_id: String,
-    /// Result status
+    pub command_type: String,
+    /// DAML template ID the command was submitted against
     #[serde(default)]
-    pub status: String,
-    /// Transaction ID (if command resulted in a transaction)
-    #[serde(default)]
-    pub transaction_id: Option<String>,
+    pub template_id: String,
     /// Created contract ID (for create commands)
     #[serde(default)]
     pub contract_id: Option<String>,
+    /// Contract payload returned by the participant (for create commands)
+    #[serde(default)]
+    pub payload: Option<serde_json::Value>,
+    /// Choice name (for exercise commands)
+    #[serde(default)]
+    pub choice: Option<String>,
     /// Exercise result (for exercise commands)
     #[serde(default)]
     pub exercise_result: Option<serde_json::Value>,
+    /// Ledger events produced by the command (for exercise commands)
+    #[serde(default)]
+    pub events: Option<serde_json::Value>,
 }

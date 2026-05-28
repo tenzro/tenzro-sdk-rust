@@ -153,7 +153,10 @@ pub use ap2::{
     Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
 };
 pub use bridge::BridgeClient;
-pub use canton::CantonClient;
+pub use canton::{
+    CantonClient, CantonDomain, CantonDomainList, DamlCommandResult, DamlContract,
+    DamlContractsQuery, DamlContractsResponse,
+};
 pub use cct::{CctClient, CctPool, CctPoolList};
 pub use circuit_breaker::CircuitBreakerClient;
 pub use compliance::{ComplianceClient, ComplianceResult, ComplianceRules, FreezeResult};
