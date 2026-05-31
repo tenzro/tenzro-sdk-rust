@@ -69,6 +69,7 @@ pub mod adaptive_burn;
 pub mod agent;
 pub mod agent_payments;
 pub mod ap2;
+pub mod api_key;
 pub mod app;
 pub mod auth;
 pub mod bridge;
@@ -151,6 +152,10 @@ pub use auth::{
 };
 pub use ap2::{
     Ap2Client, Ap2MandatePairValidation, Ap2MandateVerification, Ap2ProtocolInfo,
+};
+pub use api_key::{
+    ApiKeyClient, ApiKeyList, ApiKeyRecord, CreateApiKeyParams, CreatedApiKey, KeyClass,
+    MyApiKeyList, RevokeApiKeyResult,
 };
 pub use bridge::BridgeClient;
 pub use canton::{

@@ -102,6 +102,15 @@ impl RpcClient {
         {
             req = req.header("X-Tenzro-Api-Key", key);
         }
+        // Operator admin token for node-scoped mutation RPCs (API-key
+        // issuance / revocation / listing, staking, provider registration).
+        // Each node operator holds their own token on their own node — see
+        // `docs/api-keys.md` for the per-operator sovereignty model.
+        if let Ok(token) = std::env::var("TENZRO_ADMIN_TOKEN")
+            && !token.is_empty()
+        {
+            req = req.header("X-Tenzro-Admin-Token", token);
+        }
 
         let response = req
             .send()

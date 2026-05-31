@@ -8,7 +8,7 @@ use crate::rpc::RpcClient;
 use crate::types::Address;
 use crate::{
     agent::AgentClient, agent_payments::AgentPaymentClient, ap2::Ap2Client,
-    auth::AuthClient,
+    api_key::ApiKeyClient, auth::AuthClient,
     bridge::BridgeClient, canton::CantonClient, circuit_breaker::CircuitBreakerClient,
     compliance::ComplianceClient, contract::ContractClient, cortex::CortexClient,
     crypto::CryptoClient,
@@ -600,6 +600,24 @@ impl TenzroClient {
     /// JWT/DID revocation, and HITL approval flows.
     pub fn auth(&self) -> AuthClient {
         AuthClient::new(self.rpc.clone())
+    }
+
+    /// Creates an API-key management client.
+    ///
+    /// Surfaces both control planes:
+    /// - **Operator** (admin-token-gated): `create` / `list` / `revoke` —
+    ///   issue, enumerate, and revoke any key on this node. Sourced from
+    ///   `TENZRO_ADMIN_TOKEN` by the underlying `RpcClient`.
+    /// - **Subject** (`X-Tenzro-Api-Key`-authenticated): `list_mine` /
+    ///   `revoke_mine` — manage keys belonging to the caller's own
+    ///   subject. Sourced from `TENZRO_API_KEY`.
+    ///
+    /// Every Tenzro node operator holds their own admin token for
+    /// *their own* node. There is no global "Tenzro Labs token," and
+    /// admin capabilities do not extend to network-wide state — see
+    /// `docs/api-keys.md`.
+    pub fn api_key(&self) -> ApiKeyClient {
+        ApiKeyClient::new(self.rpc.clone())
     }
 
     /// Returns the SDK configuration
