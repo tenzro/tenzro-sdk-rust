@@ -63,7 +63,7 @@ loop {
 peer-reported network tips (gossiped on `tenzro/status`); pair it with
 `get_block_range` to drive a catch-up loop only when needed.
 
-## Modules (42)
+## Modules (68)
 
 | Module | Description |
 |--------|-------------|
@@ -101,6 +101,16 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `provider` | Hardware, model serving, scheduling |
 | `ap2` | Agentic Payment Protocol |
 | `agent_payments` | Agent spending policies |
+| `capital` | Regulated capital-allocation intents — `open`, `quote`, `assign`, `execute`, `verify`, `compensate`, `settle`, `submit_reserve_attestation`, `get_reserve`, `attested_mint` (1:1 reserve-attested issuance) |
+| `workflow` | Multi-party saga workflows — `open`, `step_execute`, `step_verify`, `step_compensate`, `finalize`, `mirror_to_canton`, `verify_did_envelope`, lifecycle + receipt readers, AP2 / x402 / MPP / Stripe SPT / Visa TAP / Mastercard Agent Pay mandate binding |
+| `eip7702` | Pectra Type-4 delegation registry — `install_delegation`, `get_delegation`, `revoke_delegation` |
+| `erc7683` | Cross-chain intents origin opener + destination fill registry |
+| `permit2` | Permit2 `SignatureTransfer` (`domain_separator`, `digest`, `verify_and_consume`, `nonce_used`) with optional witness binding for ERC-7683 origin opens |
+| `secure_mint` | Per-token 1:1 reserve-attestation invariant for tokenized RWAs (`set_policy`, `get_policy`, `check`, `apply`, `record_burn`) |
+| `hyperlane` | Hyperlane V3 messaging with sovereign Tenzro-validator-set ISM (`list_chains`, `quote_dispatch`, `dispatch`, `get_message`) |
+| `axelar` | Axelar GMP — Cosmos / Move / Stellar / XRPL reach (`call_contract`, `pay_gas`, `get_message`, `list_chains`) |
+| `babylon` | Babylon Bitcoin staking finality-providers + EOTS delegations (`register_finality_provider`, `submit_finality_signature`, `total_stake_for_provider`, `list_delegations`) |
+| `caip` | Chain-agnostic discovery (`caip2`, `caip10`, `caip19`) per submitted `tenzro` CASA namespace (`ChainAgnostic/namespaces#184`) |
 | `circuit_breaker` | Provider health management |
 | `nanopayment` | Micropayment channels |
 | `erc7802` | Cross-chain token mint/burn |

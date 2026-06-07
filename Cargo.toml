@@ -78,3 +78,11 @@ path = "examples/agent_marketplace.rs"
 [[example]]
 name = "app_developer"
 path = "examples/app_developer.rs"
+
+[[example]]
+name = "capital_intent"
+path = "examples/capital_intent.rs"
+
+[[example]]
+name = "multi_party_workflow"
+path = "examples/multi_party_workflow.rs"

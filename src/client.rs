@@ -551,6 +551,63 @@ impl TenzroClient {
         crate::cct::CctClient::new(self.rpc.clone())
     }
 
+    /// Creates a Capital Intent client for regulated capital allocation
+    /// over tokenized assets (`tenzro_capitalIntent*`), 1:1-backed
+    /// reserve attestations, and attested mints
+    pub fn capital(&self) -> crate::capital::CapitalClient {
+        crate::capital::CapitalClient::new(self.rpc.clone())
+    }
+
+    /// Creates a multi-agent saga workflow client. Drives workflows
+    /// through Execute → Verify → Compensate step lifecycles with optional
+    /// per-step escrow and Canton DAML mirroring.
+    pub fn workflow(&self) -> crate::workflow::WorkflowClient {
+        crate::workflow::WorkflowClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Permit2 `SignatureTransfer` client. Wraps the
+    /// `tenzro_permit2*` RPCs (domain separator, digest, atomic
+    /// verify + nonce consume, nonce read). Used by gasless flows and
+    /// ERC-7683 origin opens.
+    pub fn permit2(&self) -> crate::permit2::Permit2Client {
+        crate::permit2::Permit2Client::new(self.rpc.clone())
+    }
+
+    /// Creates a Secure-Mint registry client. Enforces a per-token
+    /// 1:1 reserve-attestation invariant for tokenized real-world
+    /// assets via `tenzro_setSecureMintPolicy`, `tenzro_secureMintApply`,
+    /// `tenzro_secureMintRecordBurn`, etc.
+    pub fn secure_mint(&self) -> crate::secure_mint::SecureMintClient {
+        crate::secure_mint::SecureMintClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Hyperlane V3 messaging client. Tenzro runs a
+    /// sovereign Tenzro-validator-set ISM.
+    pub fn hyperlane(&self) -> crate::hyperlane::HyperlaneClient {
+        crate::hyperlane::HyperlaneClient::new(self.rpc.clone())
+    }
+
+    /// Creates an Axelar GMP client. Reach into Cosmos / Move /
+    /// Stellar / XRPL / and 30+ chains via canonical `call_contract`
+    /// + Gas Service pre-pay.
+    pub fn axelar(&self) -> crate::axelar::AxelarClient {
+        crate::axelar::AxelarClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Babylon Bitcoin staking client. Register a Tenzro
+    /// validator as a Babylon finality provider, submit EOTS over
+    /// Tenzro block hashes, read aggregated BTC stake.
+    pub fn babylon(&self) -> crate::babylon::BabylonClient {
+        crate::babylon::BabylonClient::new(self.rpc.clone())
+    }
+
+    /// Creates a CAIP discovery client for `tenzro_caip2` /
+    /// `tenzro_caip10` / `tenzro_caip19` per the submitted `tenzro`
+    /// CASA namespace.
+    pub fn caip(&self) -> crate::caip::CaipClient {
+        crate::caip::CaipClient::new(self.rpc.clone())
+    }
+
     /// Creates an NFT client for collection and token management
     pub fn nft(&self) -> NftClient {
         NftClient::new(self.rpc.clone())
