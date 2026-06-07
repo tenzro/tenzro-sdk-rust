@@ -197,3 +197,121 @@ impl TrainingInspectionClient {
             .await
     }
 }
+
+/// Optional Confidential-tier enrollment payload — required when the
+/// task being enrolled into has a sealed-shard manifest installed.
+/// The attestation proves the trainer is running inside a TEE enclave
+/// whose pubkey + measurements were sealed into the manifest by the
+/// task sponsor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConfidentialEnrollment {
+    pub attestation: String,
+    pub enclave_pubkey: String,
+    pub measurements_hex: String,
+}
+
+/// Write-side client for the Tenzro Train protocol. Backed by the
+/// `tenzro_training_postTask` / `enrollTrainer` / `submitOuterGradient`
+/// / `finalizeRound` / `installSealedManifest` RPCs.
+#[derive(Clone)]
+pub struct TrainingClient {
+    rpc: std::sync::Arc<crate::rpc::RpcClient>,
+}
+
+impl TrainingClient {
+    pub(crate) fn new(rpc: std::sync::Arc<crate::rpc::RpcClient>) -> Self {
+        Self { rpc }
+    }
+
+    /// Register a new training run with the local syncer.
+    pub async fn post_task(
+        &self,
+        task_spec: serde_json::Value,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_training_postTask",
+                serde_json::json!({ "task_spec": task_spec }),
+            )
+            .await
+    }
+
+    /// Enroll a trainer DID into an active training run. For
+    /// Confidential-tier tasks, pass `confidential` carrying the
+    /// trainer's TEE attestation + enclave pubkey + measurements.
+    pub async fn enroll_trainer(
+        &self,
+        task_id: &str,
+        trainer_did: &str,
+        confidential: Option<&ConfidentialEnrollment>,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::Map::new();
+        params.insert("task_id".into(), serde_json::Value::String(task_id.to_string()));
+        params.insert(
+            "trainer_did".into(),
+            serde_json::Value::String(trainer_did.to_string()),
+        );
+        if let Some(c) = confidential {
+            params.insert(
+                "attestation".into(),
+                serde_json::Value::String(c.attestation.clone()),
+            );
+            params.insert(
+                "enclave_pubkey".into(),
+                serde_json::Value::String(c.enclave_pubkey.clone()),
+            );
+            params.insert(
+                "measurements_hex".into(),
+                serde_json::Value::String(c.measurements_hex.clone()),
+            );
+        }
+        self.rpc
+            .call("tenzro_training_enrollTrainer", serde_json::Value::Object(params))
+            .await
+    }
+
+    /// Submit an outer gradient for the current round.
+    pub async fn submit_outer_gradient(
+        &self,
+        task_id: &str,
+        gradient: serde_json::Value,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_training_submitOuterGradient",
+                serde_json::json!({ "task_id": task_id, "gradient": gradient }),
+            )
+            .await
+    }
+
+    /// Finalize the current round. Idempotent under the k-of-N witness
+    /// committee model: redundant submissions for the same
+    /// `(round, state_root)` return Ok; conflicting state roots return
+    /// `ConflictingFinalize` for fork detection.
+    pub async fn finalize_round(
+        &self,
+        task_id: &str,
+        sync_round: serde_json::Value,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_training_finalizeRound",
+                serde_json::json!({ "task_id": task_id, "sync_round": sync_round }),
+            )
+            .await
+    }
+
+    /// Install a sealed-shard manifest for a Confidential-tier task.
+    pub async fn install_sealed_manifest(
+        &self,
+        task_id: &str,
+        manifest: &SealedDatasetManifest,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_training_installSealedManifest",
+                serde_json::json!({ "task_id": task_id, "manifest": manifest }),
+            )
+            .await
+    }
+}

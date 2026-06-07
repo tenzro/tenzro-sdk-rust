@@ -97,7 +97,7 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `marketplace` | Agent templates, discovery, spawning |
 | `skill` | Skills registry |
 | `tool` | Tools registry |
-| `canton` | Canton/DAML contracts |
+| `canton` | Canton 3.5+ JSON Ledger API surface. Reads: `list_domains()`, `list_contracts()`, `list_parties()`, `list_packages()`, `health()`, `version()`, `get_my_user()`, `canton_coin_balance()` (CIP-56), `fee_schedule()`, `connected_synchronizers()`, `get_transaction(update_id)`. Writes: `submit_create_command()`, `submit_exercise_command()`, `upload_dar(bytes)`. Routes through the Tenzro node's canton-scoped RPC — the SDK never holds the upstream Auth0 secret. |
 | `provider` | Hardware, model serving, scheduling |
 | `ap2` | Agentic Payment Protocol |
 | `agent_payments` | Agent spending policies |

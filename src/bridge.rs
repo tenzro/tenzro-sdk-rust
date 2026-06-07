@@ -17,7 +17,7 @@
 //! - **deBridge DLN** — Intent-based cross-chain swaps. Order status tracked via
 //!   `https://stats-api.dln.trade/api/Orders/{id}`. Status mapping: `ClaimedUnlock`/`SentUnlock`
 //!   map to `Filled` (not `Created`).
-//! - **Canton** — Enterprise DAML ledger bridge via Canton 3.x JSON Ledger API v2.
+//! - **Canton** — Enterprise DAML ledger bridge via Canton 3.5+ JSON Ledger API v2.
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;

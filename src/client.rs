@@ -502,6 +502,17 @@ impl TenzroClient {
         crate::training::TrainingInspectionClient::new(self.rpc.clone())
     }
 
+    /// Creates a Tenzro Train write-side client — post tasks, enroll
+    /// trainers (including Confidential-tier enrollments that bind a
+    /// TEE attestation to the sealed-shard manifest), submit outer
+    /// gradients, finalize rounds, install sealed-shard manifests.
+    /// The wallet kernel signs every write through the configured
+    /// custody quorum; this client is the wire surface that the
+    /// wallet's training adapter routes through.
+    pub fn training(&self) -> crate::training::TrainingClient {
+        crate::training::TrainingClient::new(self.rpc.clone())
+    }
+
     /// Creates a validator-side SLA fault-detector inspection client.
     /// Wraps `tenzro_slaIssueProbe`, `tenzro_slaListOutstandingProbes`,
     /// and `tenzro_slaGetParams`. The probe-issuing call is

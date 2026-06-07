@@ -3,7 +3,7 @@
 //! This module provides Canton synchronizer domain and DAML contract interaction
 //! functionality, including domain listing, contract queries, and command submission.
 //!
-//! Uses the Canton 3.x JSON Ledger API v2 endpoints:
+//! Uses the Canton 3.5+ JSON Ledger API v2 endpoints:
 //! - Commands: `POST /v2/commands/submit-and-wait-for-transaction`
 //! - Active contracts: `POST /v2/state/active-contracts` (with `identifierFilter`)
 //! - Events: `POST /v2/events/events-by-contract-id`
@@ -124,6 +124,86 @@ impl CantonClient {
                 }),
             )
             .await
+    }
+
+    // ── Canton 3.5+ JSON Ledger API extension methods ──
+
+    /// Upload a DAR (DAML Archive) to the participant via
+    /// `POST /v2/packages`. `dar_bytes` is the raw DAR file bytes; the
+    /// node base64-encodes them on the way out.
+    pub async fn upload_dar(&self, dar_bytes: &[u8]) -> SdkResult<serde_json::Value> {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+        let b64 = B64.encode(dar_bytes);
+        self.rpc
+            .call(
+                "tenzro_canton_uploadDar",
+                serde_json::json!({ "dar_content_base64": b64 }),
+            )
+            .await
+    }
+
+    /// List every party known to the participant. Note: on the Tenzro
+    /// DevNet the `daml_ledger_api` scope may not grant read access to
+    /// the party registry; expect `{"partyDetails":[]}` in that case.
+    pub async fn list_parties(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_listParties", serde_json::json!({})).await
+    }
+
+    /// Combined health probe: `/livez`, `/readyz`, `/v2/version`.
+    /// Returns `{alive, ready, ready_detail, version}` where `version`
+    /// carries Canton CIP feature flags when reachable.
+    pub async fn health(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_health", serde_json::json!({})).await
+    }
+
+    /// Returns participant version + CIP feature flags via
+    /// `GET /v2/version`.
+    pub async fn version(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_version", serde_json::json!({})).await
+    }
+
+    /// Fetch a Canton transaction tree by update id (hex string).
+    pub async fn get_transaction(&self, update_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_canton_getTransaction",
+                serde_json::json!({ "update_id": update_id }),
+            )
+            .await
+    }
+
+    /// List every DAML package installed on the participant.
+    pub async fn list_packages(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_listPackages", serde_json::json!({})).await
+    }
+
+    /// Returns the Canton Coin (CIP-56) balance for the participant's
+    /// party by summing every `Splice.Amulet:Amulet` contract the
+    /// party is a stakeholder on.
+    pub async fn canton_coin_balance(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_coinBalance", serde_json::json!({})).await
+    }
+
+    /// Returns the participant's Canton fee schedule sourced from the
+    /// latest `Splice.AmuletRules:AmuletRules` contract.
+    pub async fn fee_schedule(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_feeSchedule", serde_json::json!({})).await
+    }
+
+    /// Returns the synchronizers the participant's party is currently
+    /// connected to.
+    pub async fn connected_synchronizers(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_canton_connectedSynchronizers", serde_json::json!({}))
+            .await
+    }
+
+    /// Returns the OAuth principal's Canton user record via
+    /// `GET /v2/users/<client_id>@clients` (CIP-26). The Tenzro node
+    /// derives the user id from its OAuth client id; Canton 3.5.1
+    /// has no `/users/me` alias (returns 404 USER_NOT_FOUND).
+    pub async fn get_my_user(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_canton_getMyUser", serde_json::json!({})).await
     }
 }
 
