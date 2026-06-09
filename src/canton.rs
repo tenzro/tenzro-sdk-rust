@@ -83,10 +83,10 @@ impl CantonClient {
             .await
     }
 
-    /// Submits a DAML `create` command on the shared Canton domain.
+    /// Submits a DAML `create` command on the configured Canton domain.
     ///
-    /// The node proxies the call to the configured Canton participant using
-    /// its own bearer JWT — callers never see the Auth0 secret.
+    /// The node mediates the call to the Canton participant — callers
+    /// never handle the upstream credentials.
     pub async fn create_contract(
         &self,
         template_id: &str,
@@ -123,6 +123,107 @@ impl CantonClient {
                     "choice_argument": choice_argument,
                 }),
             )
+            .await
+    }
+
+    /// Allocate a new party on the participant via `POST /v2/parties`.
+    ///
+    /// Returns the participant's response containing the
+    /// fully-qualified party id `<party_id_hint>::<participant-hash>`.
+    /// The newly-allocated party has no `CanActAs` / `CanReadAs`
+    /// grants on any user by default — follow up with
+    /// [`grant_user_rights`] so the operator's OAuth user can submit
+    /// DAML commands on behalf of the new party.
+    pub async fn allocate_party(
+        &self,
+        party_id_hint: &str,
+        display_name: Option<&str>,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::Map::new();
+        params.insert(
+            "party_id_hint".into(),
+            serde_json::Value::String(party_id_hint.to_string()),
+        );
+        if let Some(d) = display_name {
+            params.insert("display_name".into(), serde_json::Value::String(d.to_string()));
+        }
+        self.rpc
+            .call("tenzro_allocateParty", serde_json::Value::Object(params))
+            .await
+    }
+
+    /// Grant `CanActAs` / `CanReadAs` rights on a party to a user
+    /// (Canton 3.5+ User Management Service via
+    /// `POST /v2/users/{userId}/rights`).
+    ///
+    /// Without these grants, the calling user cannot submit DAML
+    /// commands on behalf of a newly-allocated party. Pass
+    /// `user_id = None` to grant to the calling principal's own
+    /// Canton user.
+    pub async fn grant_user_rights(
+        &self,
+        user_id: Option<&str>,
+        party: &str,
+        can_act_as: bool,
+        can_read_as: bool,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::Map::new();
+        if let Some(u) = user_id {
+            params.insert("user_id".into(), serde_json::Value::String(u.to_string()));
+        }
+        params.insert("party".into(), serde_json::Value::String(party.to_string()));
+        params.insert("can_act_as".into(), serde_json::Value::Bool(can_act_as));
+        params.insert("can_read_as".into(), serde_json::Value::Bool(can_read_as));
+        self.rpc
+            .call(
+                "tenzro_canton_grantUserRights",
+                serde_json::Value::Object(params),
+            )
+            .await
+    }
+
+    /// List the rights granted to a Canton user
+    /// (`GET /v2/users/{userId}/rights`). Pass `None` to list rights
+    /// for the OAuth principal's own user.
+    pub async fn list_user_rights(
+        &self,
+        user_id: Option<&str>,
+    ) -> SdkResult<serde_json::Value> {
+        let params = match user_id {
+            Some(u) => serde_json::json!({ "user_id": u }),
+            None => serde_json::json!({}),
+        };
+        self.rpc.call("tenzro_canton_listUserRights", params).await
+    }
+
+    /// Subject self-read: returns the Canton call aggregates for the
+    /// API key presented by this RPC client. Counters are maintained
+    /// server-side in RocksDB (`CF_CANTON_ANALYTICS`) — every
+    /// canton-scoped call increments `calls_total` (or
+    /// `errors_total`) plus the corresponding per-method bucket.
+    /// Lets a tenant answer "how many DAML transactions have I
+    /// submitted, and which methods am I hitting?" without operator
+    /// help.
+    pub async fn get_my_analytics(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_canton_getMyAnalytics", serde_json::json!({}))
+            .await
+    }
+
+    /// Operator admin-read: returns every per-tenant aggregate.
+    /// Gated behind the operator admin token (`X-Tenzro-Admin-Token`)
+    /// at the node — non-admin callers see `-32001`. Optional
+    /// `key_id` filter narrows to a single tenant.
+    pub async fn list_api_key_analytics(
+        &self,
+        key_id: Option<&str>,
+    ) -> SdkResult<serde_json::Value> {
+        let params = match key_id {
+            Some(k) => serde_json::json!({ "key_id": k }),
+            None => serde_json::json!({}),
+        };
+        self.rpc
+            .call("tenzro_canton_listApiKeyAnalytics", params)
             .await
     }
 
@@ -198,10 +299,8 @@ impl CantonClient {
             .await
     }
 
-    /// Returns the OAuth principal's Canton user record via
-    /// `GET /v2/users/<client_id>@clients` (CIP-26). The Tenzro node
-    /// derives the user id from its OAuth client id; Canton 3.5.1
-    /// has no `/users/me` alias (returns 404 USER_NOT_FOUND).
+    /// Returns the Canton user record for the calling principal via
+    /// CIP-26 User Management.
     pub async fn get_my_user(&self) -> SdkResult<serde_json::Value> {
         self.rpc.call("tenzro_canton_getMyUser", serde_json::json!({})).await
     }

@@ -343,6 +343,15 @@ impl TenzroClient {
         WalletClient::new(self.rpc.clone())
     }
 
+    /// Creates a passkey-first custody client — enrollment, signing, social
+    /// recovery, session-key grants, hardware-signer install, smart-account
+    /// queries. Maps 1:1 to the `tenzro_*Passkey*` / `tenzro_*Recovery*` /
+    /// `tenzro_*SessionKey*` / `tenzro_*HardwareSigner*` /
+    /// `tenzro_*SmartAccount*` RPC surface.
+    pub fn passkey_rpc(&self) -> crate::passkey_client::PasskeyClient {
+        crate::passkey_client::PasskeyClient::new(self.rpc.clone())
+    }
+
     /// Creates an inference client for AI model inference
     pub fn inference(&self) -> InferenceClient {
         InferenceClient::new(self.rpc.clone())
@@ -590,6 +599,43 @@ impl TenzroClient {
     /// `tenzro_secureMintRecordBurn`, etc.
     pub fn secure_mint(&self) -> crate::secure_mint::SecureMintClient {
         crate::secure_mint::SecureMintClient::new(self.rpc.clone())
+    }
+
+    /// Creates an ERC-7943 (uRWA) client. Read paths
+    /// (`tenzro_urwaIsKillSwitched`, `tenzro_urwaGetFrozenTokens`)
+    /// are public; mutation paths
+    /// (`tenzro_urwaSetFrozenTokens`, `tenzro_urwaTriggerKillSwitch`,
+    /// `tenzro_urwaClearKillSwitch`) require the operator admin token
+    /// to be configured on the underlying client.
+    pub fn urwa(&self) -> crate::urwa::UrwaClient {
+        crate::urwa::UrwaClient::new(self.rpc.clone())
+    }
+
+    /// Creates an IVMS101 Travel Rule envelope client.
+    pub fn ivms101(&self) -> crate::ivms101::Ivms101Client {
+        crate::ivms101::Ivms101Client::new(self.rpc.clone())
+    }
+
+    /// Creates a TEE-attested clock client.
+    pub fn attested_clock(&self) -> crate::attested_clock::AttestedClockClient {
+        crate::attested_clock::AttestedClockClient::new(self.rpc.clone())
+    }
+
+    /// Creates an A2A v1.0 SignedAgentCard canonical-hash client.
+    pub fn signed_agent_card(&self) -> crate::signed_agent_card::SignedAgentCardClient {
+        crate::signed_agent_card::SignedAgentCardClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Wormhole NTT (Native Token Transfers) catalog client.
+    pub fn wormhole_ntt(&self) -> crate::wormhole_ntt::WormholeNttClient {
+        crate::wormhole_ntt::WormholeNttClient::new(self.rpc.clone())
+    }
+
+    /// Creates a bridge-fee-in-TNZO client. Quotes destination-native
+    /// fees in TNZO and enumerates per-adapter sponsorship pool vault
+    /// addresses.
+    pub fn bridge_fee(&self) -> crate::bridge_fee::BridgeFeeClient {
+        crate::bridge_fee::BridgeFeeClient::new(self.rpc.clone())
     }
 
     /// Creates a Hyperlane V3 messaging client. Tenzro runs a

@@ -69,6 +69,15 @@ impl ApiKeyClient {
                 serde_json::Value::Bool(true),
             );
         }
+        if let Some(uid) = params.canton_user_id {
+            body.insert("canton_user_id".to_string(), serde_json::Value::String(uid));
+        }
+        if let Some(b) = params.auto_provision_canton {
+            body.insert(
+                "auto_provision_canton".to_string(),
+                serde_json::Value::Bool(b),
+            );
+        }
         self.rpc
             .call("tenzro_createApiKey", serde_json::Value::Object(body))
             .await
@@ -135,6 +144,16 @@ pub struct CreateApiKeyParams {
     pub scopes: Vec<String>,
     /// Revocability class.
     pub class: KeyClass,
+    /// Optional Canton User Management Service user id (e.g.
+    /// `tenzro-labs@clients`). When set together with the `canton`
+    /// scope, the node will automatically allocate a tenant party,
+    /// create the Canton user with that primary party, and grant
+    /// CanActAs — fully provisioned tenant in one operator call.
+    pub canton_user_id: Option<String>,
+    /// Whether to auto-provision the Canton user when
+    /// `canton_user_id` is set. Defaults to `true` server-side;
+    /// pass `Some(false)` to opt out.
+    pub auto_provision_canton: Option<bool>,
 }
 
 impl CreateApiKeyParams {
@@ -146,6 +165,26 @@ impl CreateApiKeyParams {
             subject: Some(subject_did.into()),
             scopes: vec!["canton".to_string()],
             class: KeyClass::Subject,
+            canton_user_id: None,
+            auto_provision_canton: None,
+        }
+    }
+
+    /// Convenience constructor for a tenant key bound to a Canton
+    /// user id. Auto-provisions the Canton user + party + rights when
+    /// the operator submits this on a canton-enabled node.
+    pub fn tenant_canton(
+        label: impl Into<String>,
+        subject_did: impl Into<String>,
+        canton_user_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            subject: Some(subject_did.into()),
+            scopes: vec!["canton".to_string()],
+            class: KeyClass::Subject,
+            canton_user_id: Some(canton_user_id.into()),
+            auto_provision_canton: None,
         }
     }
 }
@@ -189,8 +228,56 @@ pub struct CreatedApiKey {
     #[serde(default)]
     pub class: Option<String>,
     pub created_at: i64,
+    /// Bound Canton User Management Service user id, if any.
+    #[serde(default)]
+    pub canton_user_id: Option<String>,
+    /// FQ party id (`<hint>::<participant-hash>`) auto-provisioned for
+    /// this user.
+    #[serde(default)]
+    pub canton_primary_party: Option<String>,
+    /// Stage 2.b: Canton IdentityProviderConfig id auto-registered
+    /// for this tenant when the node is configured with a
+    /// tenant-IdP provisioner. The party + user live under this IDP.
+    #[serde(default)]
+    pub canton_identity_provider_id: Option<String>,
+    /// Summary of the Canton provision step.
+    #[serde(default)]
+    pub canton_provisioning: Option<CantonProvisioningSummary>,
+    /// Stage 2.b: per-tenant OAuth2 client minted upstream, returned
+    /// exactly once. The `client_secret` is the tenant's responsibility
+    /// to persist; the Tenzro node does not store it.
+    #[serde(default)]
+    pub tenant_oauth_client: Option<TenantOAuthClient>,
     #[serde(default)]
     pub note: Option<String>,
+}
+
+/// Stage 2.b: per-tenant OAuth2 client minted upstream by the
+/// Tenzro node at API-key issuance time. Returned once.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TenantOAuthClient {
+    pub client_id: String,
+    pub client_secret: String,
+    pub token_url: String,
+    pub issuer_url: String,
+    pub jwks_url: String,
+    pub audience: String,
+}
+
+/// Summary of the Canton auto-provision step when `canton_user_id`
+/// is bound on `create`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CantonProvisioningSummary {
+    /// `provisioned` for a fresh provision, `already_exists` for
+    /// idempotent reissue.
+    pub status: String,
+    pub user_id: String,
+    #[serde(default)]
+    pub primary_party: Option<String>,
+    #[serde(default)]
+    pub party_hint: Option<String>,
+    #[serde(default)]
+    pub rights_granted: Option<Vec<String>>,
 }
 
 /// One row of the keyring as returned by `list` / `list_mine`.

@@ -5,7 +5,7 @@
 
 [package]
 name = "tenzro-sdk"
-version = "0.4.2"
+version = "0.4.6"
 edition = "2024"
 description = "Tenzro Network SDK — wallets, identity, agents, inference, bridge, crypto, TEE, ZK proofs, custody, and settlement"
 license = "Apache-2.0"
@@ -34,6 +34,15 @@ sha2 = "0.10"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
+tenzro-crypto = { path = "../../crates/tenzro-crypto" }
+hex = "0.4"
+tokio = { version = "1", features = ["full"] }
+sha2 = "0.10"
+base64 = "0.22"
+serde_json = "1"
+bincode = "1.3"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
 
 [[example]]
 name = "basic_usage"
@@ -86,3 +95,15 @@ path = "examples/capital_intent.rs"
 [[example]]
 name = "multi_party_workflow"
 path = "examples/multi_party_workflow.rs"
+
+[[example]]
+name = "passkey_e2e_smoke"
+path = "examples/passkey_e2e_smoke.rs"
+
+[[example]]
+name = "passkey_sign_smoke"
+path = "examples/passkey_sign_smoke.rs"
+
+[[example]]
+name = "passkey_userop_smoke"
+path = "examples/passkey_userop_smoke.rs"

@@ -391,6 +391,12 @@ pub struct TokenInfo {
     /// SVM mint address (hex)
     #[serde(default)]
     pub svm_mint: String,
+    /// Canton DAML CIP-56 template identifier
+    #[serde(default)]
+    pub daml_template_id: Option<String>,
+    /// Tempo L1 TIP-20 contract address (hex)
+    #[serde(default)]
+    pub tempo_address: Option<String>,
     /// Creator address (hex)
     #[serde(default)]
     pub creator: String,
@@ -431,6 +437,15 @@ pub struct TokenListEntry {
     /// EVM contract address (hex)
     #[serde(default)]
     pub evm_address: String,
+    /// SVM mint address (hex)
+    #[serde(default)]
+    pub svm_mint: Option<String>,
+    /// Canton DAML CIP-56 template identifier
+    #[serde(default)]
+    pub daml_template_id: Option<String>,
+    /// Tempo L1 TIP-20 contract address (hex)
+    #[serde(default)]
+    pub tempo_address: Option<String>,
 }
 
 /// Token balance across all VMs

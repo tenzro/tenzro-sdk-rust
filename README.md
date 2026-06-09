@@ -97,7 +97,7 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `marketplace` | Agent templates, discovery, spawning |
 | `skill` | Skills registry |
 | `tool` | Tools registry |
-| `canton` | Canton 3.5+ JSON Ledger API surface. Reads: `list_domains()`, `list_contracts()`, `list_parties()`, `list_packages()`, `health()`, `version()`, `get_my_user()`, `canton_coin_balance()` (CIP-56), `fee_schedule()`, `connected_synchronizers()`, `get_transaction(update_id)`. Writes: `submit_create_command()`, `submit_exercise_command()`, `upload_dar(bytes)`. Routes through the Tenzro node's canton-scoped RPC — the SDK never holds the upstream Auth0 secret. |
+| `canton` | Canton 3.5+ JSON Ledger API surface. Reads: `list_domains()`, `list_contracts()`, `list_parties()`, `list_packages()`, `health()`, `version()`, `get_my_user()`, `canton_coin_balance()` (CIP-56), `fee_schedule()`, `connected_synchronizers()`, `get_transaction(update_id)`, `list_user_rights(user_id?)`, `get_my_analytics()`, `list_api_key_analytics(key_id?)`. Writes: `submit_create_command()`, `submit_exercise_command()`, `allocate_party(hint, display_name?)`, `grant_user_rights(user_id?, party, can_act_as, can_read_as)`, `upload_dar(bytes)`. Wire shape verified against Canton 3.5.1: the `submit-and-wait-for-transaction` request body nests `JsCommands` under a top-level `commands` key, each command is externally-tagged (`{CreateCommand: {...}}` / `{ExerciseCommand: {...}}`). Routes through the Tenzro node's canton-scoped RPC. When the presenting API key has a bound `canton_user_id`, the node auto-forwards `actAs` / `requestingParties` as the tenant's `primaryParty`. Stage 2.b (`identity_providers.enabled` on the node) auto-mints a per-tenant upstream OAuth client at issuance and returns the `tenant_oauth_client` (id + secret + token_url + issuer_url + jwks_url + audience) once on `client.api_keys().create(...)`. |
 | `provider` | Hardware, model serving, scheduling |
 | `ap2` | Agentic Payment Protocol |
 | `agent_payments` | Agent spending policies |
@@ -111,6 +111,13 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `axelar` | Axelar GMP — Cosmos / Move / Stellar / XRPL reach (`call_contract`, `pay_gas`, `get_message`, `list_chains`) |
 | `babylon` | Babylon Bitcoin staking finality-providers + EOTS delegations (`register_finality_provider`, `submit_finality_signature`, `total_stake_for_provider`, `list_delegations`) |
 | `caip` | Chain-agnostic discovery (`caip2`, `caip10`, `caip19`) per submitted `tenzro` CASA namespace (`ChainAgnostic/namespaces#184`) |
+| `bridge_fee` | Cross-chain bridge fees in TNZO — `quote()` for destination-native fees, `list_sponsorship_pools()` for per-adapter vault state, `sponsor()` against a previously-quoted envelope, `get_analytics()` for self-read CU consumption, `list_analytics()` for operator cross-tenant read. Admin-only mutations: `set_rate()`, `set_refill_threshold()`. Requires `chainlink` API key scope on the node. |
+| `urwa` | ERC-7943 (uRWA) compliance surface: token freeze, kill-switch, forced-transfer mutations for tokenized RWA pool admins (admin-token-gated) |
+| `ivms101` | FATF Travel Rule IVMS101 v1.1.0 canonical envelope helpers for KYC payloads on cross-border transfers |
+| `attested_clock` | TEE-attested-timestamp envelope for saga step deadlines + obligation expiry — 30s drift tolerance |
+| `signed_agent_card` | A2A v1.0 SignedAgentCard JWS envelope helpers + canonical-hash computation for verifier rebinding |
+| `wormhole_ntt` | Wormhole NTT (Native Token Transfers) — NttManager registry + multi-transceiver chain catalog (Wormhole / Axelar / LayerZero / custom) |
+| `chainlink_feed` | (Internal node-side) Chainlink AggregatorV3 reader with 30s in-memory cache, per-feed staleness threshold, cross-feed rate derivation. Used by the bridge fee oracle when operator enables `chainlink_feeds` in node config. |
 | `circuit_breaker` | Provider health management |
 | `nanopayment` | Micropayment channels |
 | `erc7802` | Cross-chain token mint/burn |
