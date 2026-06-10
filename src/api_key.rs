@@ -78,6 +78,67 @@ impl ApiKeyClient {
                 serde_json::Value::Bool(b),
             );
         }
+
+        // Delegation bundle — emit fields the node parses verbatim.
+        // Empty arrays are dropped so we don't ship noise on wire.
+        if let Some(d) = params.delegation {
+            let push_str_array = |body: &mut serde_json::Map<String, serde_json::Value>, key: &str, v: Vec<String>| {
+                if !v.is_empty() {
+                    body.insert(
+                        key.to_string(),
+                        serde_json::Value::Array(v.into_iter().map(serde_json::Value::String).collect()),
+                    );
+                }
+            };
+            push_str_array(&mut body, "can_act_as_parties", d.can_act_as_parties);
+            push_str_array(&mut body, "can_read_as_parties", d.can_read_as_parties);
+            push_str_array(&mut body, "allowed_templates", d.allowed_templates);
+            push_str_array(&mut body, "allowed_commands", d.allowed_commands);
+            push_str_array(&mut body, "requires_mandate_for", d.requires_mandate_for);
+            push_str_array(&mut body, "allowed_tools", d.allowed_tools);
+            push_str_array(&mut body, "allowed_skills", d.allowed_skills);
+            push_str_array(&mut body, "allowed_knowledge", d.allowed_knowledge);
+            push_str_array(
+                &mut body,
+                "allowed_workflow_templates",
+                d.allowed_workflow_templates,
+            );
+            push_str_array(
+                &mut body,
+                "allowed_agent_templates",
+                d.allowed_agent_templates,
+            );
+            push_str_array(&mut body, "allowed_models", d.allowed_models);
+            if let Some(v) = d.max_per_command_amulet {
+                body.insert(
+                    "max_per_command_amulet".to_string(),
+                    serde_json::Value::String(v.to_string()),
+                );
+            }
+            if let Some(v) = d.max_per_day_amulet {
+                body.insert(
+                    "max_per_day_amulet".to_string(),
+                    serde_json::Value::String(v.to_string()),
+                );
+            }
+            if let Some(v) = d.valid_until {
+                body.insert(
+                    "valid_until".to_string(),
+                    serde_json::Value::Number(v.into()),
+                );
+            }
+            if !d.max_per_resource_tnzo.is_empty() {
+                let mut obj = serde_json::Map::new();
+                for (rid, v) in d.max_per_resource_tnzo {
+                    obj.insert(rid, serde_json::Value::String(v.to_string()));
+                }
+                body.insert(
+                    "max_per_resource_tnzo".to_string(),
+                    serde_json::Value::Object(obj),
+                );
+            }
+        }
+
         self.rpc
             .call("tenzro_createApiKey", serde_json::Value::Object(body))
             .await
@@ -133,7 +194,7 @@ impl ApiKeyClient {
 }
 
 /// Parameters for [`ApiKeyClient::create`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CreateApiKeyParams {
     /// Free-form label shown in `list`.
     pub label: String,
@@ -154,6 +215,50 @@ pub struct CreateApiKeyParams {
     /// `canton_user_id` is set. Defaults to `true` server-side;
     /// pass `Some(false)` to opt out.
     pub auto_provision_canton: Option<bool>,
+    /// Optional agent delegation bundle. Activates per-party,
+    /// per-template, per-command, per-resource authorization on
+    /// every RPC presenting this key. `None` = legacy unrestricted
+    /// behaviour.
+    pub delegation: Option<AgentDelegationParams>,
+}
+
+/// Per-resource-class allow-lists and ceilings for a tenant key.
+/// All fields default-empty; an empty field is "no restriction in
+/// that class". A non-empty field activates the gate at the matching
+/// invocation handler.
+#[derive(Debug, Clone, Default)]
+pub struct AgentDelegationParams {
+    /// Canton FQ party ids the key is allowed to act for.
+    pub can_act_as_parties: Vec<String>,
+    /// Canton FQ party ids the key is allowed to observe.
+    pub can_read_as_parties: Vec<String>,
+    /// Canton DAML template ids the key may query / submit against.
+    pub allowed_templates: Vec<String>,
+    /// Canton DAML command shapes the key may exercise.
+    pub allowed_commands: Vec<String>,
+    /// Canton command shapes that require an AP2 cart mandate.
+    pub requires_mandate_for: Vec<String>,
+    /// Per-command Canton value ceiling in amulet smallest units.
+    pub max_per_command_amulet: Option<u128>,
+    /// Rolling-day Canton cumulative value ceiling.
+    pub max_per_day_amulet: Option<u128>,
+    /// Unix timestamp (seconds) after which the key is rejected.
+    pub valid_until: Option<i64>,
+    /// Tool / MCP resource_ids the key may invoke.
+    pub allowed_tools: Vec<String>,
+    /// Skill ids the key may invoke.
+    pub allowed_skills: Vec<String>,
+    /// Knowledge resource_ids the key may query.
+    pub allowed_knowledge: Vec<String>,
+    /// Workflow template_ids the key may instantiate.
+    pub allowed_workflow_templates: Vec<String>,
+    /// Agent template_ids the key may instantiate.
+    pub allowed_agent_templates: Vec<String>,
+    /// Model_ids the key may call for inference.
+    pub allowed_models: Vec<String>,
+    /// Per-resource TNZO ceiling override
+    /// (`resource_id → atto-TNZO`).
+    pub max_per_resource_tnzo: std::collections::BTreeMap<String, u128>,
 }
 
 impl CreateApiKeyParams {
@@ -167,6 +272,7 @@ impl CreateApiKeyParams {
             class: KeyClass::Subject,
             canton_user_id: None,
             auto_provision_canton: None,
+            delegation: None,
         }
     }
 
@@ -185,7 +291,21 @@ impl CreateApiKeyParams {
             class: KeyClass::Subject,
             canton_user_id: Some(canton_user_id.into()),
             auto_provision_canton: None,
+            delegation: None,
         }
+    }
+
+    /// Attach a delegation bundle. Activates per-resource-class
+    /// authorization at every gated invocation handler.
+    pub fn with_delegation(mut self, delegation: AgentDelegationParams) -> Self {
+        self.delegation = Some(delegation);
+        self
+    }
+}
+
+impl Default for KeyClass {
+    fn default() -> Self {
+        Self::Subject
     }
 }
 

@@ -444,6 +444,35 @@ impl TenzroClient {
         ToolClient::new(self.rpc.clone())
     }
 
+    /// Creates a knowledge client for Knowledge Registry operations
+    /// (vector DBs, RAG indices, document corpora, data feeds,
+    /// embedding stores).
+    pub fn knowledge(&self) -> crate::knowledge::KnowledgeClient {
+        crate::knowledge::KnowledgeClient::new(self.rpc.clone())
+    }
+
+    /// Creates a unified-resource client for cross-registry discovery
+    /// (`tenzro_listResources`), single-call invocation
+    /// (`tenzro_useResource`), and atomic child-agent spawn
+    /// (`tenzro_spawnChildAgent`).
+    pub fn resources(&self) -> crate::resources::ResourcesClient {
+        crate::resources::ResourcesClient::new(self.rpc.clone())
+    }
+
+    /// Creates an MCP plugin host client. Operator-only — used to
+    /// populate the sealed credential vault that the plugin host
+    /// references when dispatching tenant invocations to upstream MCPs.
+    pub fn mcp_host(&self) -> crate::mcp_host::McpHostClient {
+        crate::mcp_host::McpHostClient::new(self.rpc.clone())
+    }
+
+    /// Creates a Canton-agent client. Covers the autonomous agent
+    /// Canton surface: mandate-bound DAML write, scoped read via
+    /// watchParty, and rolled-up analytics.
+    pub fn canton_agent(&self) -> crate::canton_agent::CantonAgentClient {
+        crate::canton_agent::CantonAgentClient::new(self.rpc.clone())
+    }
+
     /// Creates an AP2 client for agentic payment protocol operations
     pub fn ap2(&self) -> Ap2Client {
         Ap2Client::new(self.rpc.clone())
