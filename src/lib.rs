@@ -106,6 +106,7 @@ pub mod identity;
 pub mod inference;
 pub mod iroh;
 pub mod marketplace;
+pub mod memory;
 pub mod nanopayment;
 pub mod nft;
 pub mod passkey;

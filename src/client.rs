@@ -407,6 +407,13 @@ impl TenzroClient {
         MarketplaceClient::new(self.rpc.clone())
     }
 
+    /// Creates a memory client for per-agent memory tier operations
+    /// (`tenzro_memory*`). Requires DPoP+JWT bearer auth via
+    /// `TENZRO_BEARER_JWT` / `TENZRO_DPOP_PROOF` env vars.
+    pub fn memory(&self) -> crate::memory::MemoryClient {
+        crate::memory::MemoryClient::new(self.rpc.clone())
+    }
+
     /// Creates a Canton client for Canton/DAML operations
     pub fn canton(&self) -> CantonClient {
         CantonClient::new(self.rpc.clone())
