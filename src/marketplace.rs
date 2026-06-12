@@ -88,18 +88,27 @@ impl MarketplaceClient {
     /// On successful invocation via `run_agent_template`, the `AGENT_MARKETPLACE_COMMISSION_BPS`
     /// (5%) network commission flows to the treasury and the remainder is paid
     /// to `creator_wallet`.
+    /// `creator` is the hex-encoded (0x-prefixed) creator address — required
+    /// by the node. `template_id` optionally pins a stable id (registration
+    /// fails if the id already exists); when `None` the node mints a UUID.
     pub async fn register_agent_template(
         &self,
         name: &str,
         description: &str,
         template_type: &str,
         system_prompt: &str,
+        creator: &str,
         tags: Vec<String>,
+        template_id: Option<&str>,
         creator_did: Option<&str>,
         creator_wallet: Option<&str>,
         pricing: &str,
     ) -> SdkResult<AgentTemplate> {
         let mut params = serde_json::Map::new();
+        if let Some(id) = template_id {
+            params.insert("template_id".into(), serde_json::json!(id));
+        }
+        params.insert("creator".into(), serde_json::json!(creator));
         params.insert("name".into(), serde_json::json!(name));
         params.insert("description".into(), serde_json::json!(description));
         params.insert("template_type".into(), serde_json::json!(template_type));

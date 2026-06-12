@@ -67,12 +67,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          When reviewing code, check for: memory safety, error handling with Result/Option, \
          proper use of iterators, avoiding unnecessary clones, and correct async patterns. \
          Provide specific line-by-line feedback with suggested improvements.",
+        "0x0000000000000000000000000000000000000001", // creator address
         vec![
             "rust".to_string(),
             "code-review".to_string(),
             "programming".to_string(),
             "security".to_string(),
         ],
+        None,   // template_id: let the node mint a UUID
         None,   // creator_did: not attributing to a DID for this free example
         None,   // creator_wallet: not required for free pricing
         "free", // pricing: free tier — no commission, no fee collection
@@ -100,12 +102,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          profitable trading strategies while managing risk. Always verify: 1) Price impact < 0.5%, \
          2) Gas costs < 10% of expected profit, 3) Slippage tolerance within bounds. \
          Never execute trades larger than the configured max_position_size.",
+        "0x0000000000000000000000000000000000000001", // creator address
         vec![
             "defi".to_string(),
             "trading".to_string(),
             "autonomous".to_string(),
             "finance".to_string(),
         ],
+        None, // template_id: let the node mint a UUID
         Some("did:tenzro:human:demo-creator"), // creator_did: bind to publisher DID
         // creator_wallet: MANDATORY for non-free pricing — receives 95% of each
         // invocation fee. The 5% AGENT_MARKETPLACE_COMMISSION_BPS flows to treasury.
@@ -131,12 +135,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          1) Decompose the topic into subtasks, 2) Delegate to specialist agents, \
          3) Collect and validate results, 4) Synthesize findings, 5) Generate a structured report. \
          Coordinate up to 5 parallel agents. Track progress and handle failures gracefully.",
+        "0x0000000000000000000000000000000000000001", // creator address
         vec![
             "research".to_string(),
             "orchestration".to_string(),
             "multi-agent".to_string(),
             "workflows".to_string(),
         ],
+        None, // template_id: let the node mint a UUID
         Some("did:tenzro:human:demo-creator"),
         Some("0x0000000000000000000000000000000000000001"),
         "subscription:50000000000000000000", // 50 TNZO per month
@@ -161,12 +167,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          For images: perform OCR and describe visual content. \
          For spreadsheets: analyze data patterns and generate summaries. \
          Always return structured JSON output with extracted data.",
+        "0x0000000000000000000000000000000000000001", // creator address
         vec![
             "documents".to_string(),
             "ocr".to_string(),
             "multi-modal".to_string(),
             "data-extraction".to_string(),
         ],
+        None, // template_id: let the node mint a UUID
         Some("did:tenzro:human:demo-creator"),
         Some("0x0000000000000000000000000000000000000001"),
         "per_token:1000000000000", // 0.000001 TNZO per token
