@@ -363,24 +363,23 @@ pub struct CreatedApiKey {
     /// Summary of the Canton provision step.
     #[serde(default)]
     pub canton_provisioning: Option<CantonProvisioningSummary>,
-    /// Stage 2.b: per-tenant OAuth2 client minted upstream, returned
-    /// exactly once. The `client_secret` is the tenant's responsibility
-    /// to persist; the Tenzro node does not store it.
+    /// Stage 2.b: non-secret metadata about the per-tenant OAuth2
+    /// client minted upstream. The credentials stay on the node,
+    /// which mints and forwards the tenant's Canton JWT internally
+    /// on every canton-scoped call — the `tnz_...` API key is the
+    /// tenant's only credential.
     #[serde(default)]
     pub tenant_oauth_client: Option<TenantOAuthClient>,
     #[serde(default)]
     pub note: Option<String>,
 }
 
-/// Stage 2.b: per-tenant OAuth2 client minted upstream by the
-/// Tenzro node at API-key issuance time. Returned once.
+/// Stage 2.b: non-secret per-tenant OAuth2 client metadata minted
+/// upstream by the Tenzro node at API-key issuance time.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TenantOAuthClient {
     pub client_id: String,
-    pub client_secret: String,
-    pub token_url: String,
     pub issuer_url: String,
-    pub jwks_url: String,
     pub audience: String,
 }
 

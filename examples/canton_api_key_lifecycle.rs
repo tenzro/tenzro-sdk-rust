@@ -80,6 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             subject: Some(subject_did.clone()),
             scopes: vec!["canton".to_string()],
             class: KeyClass::Subject,
+            ..Default::default()
         })
         .await?;
     println!("   key_id:    {}", created.key_id);

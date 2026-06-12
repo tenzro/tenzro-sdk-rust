@@ -24,6 +24,7 @@ use std::sync::Arc;
 ///
 /// ```no_run
 /// # use tenzro_sdk::{TenzroClient, config::SdkConfig};
+/// # use tenzro_sdk::task::QuoteOpts;
 /// # use tenzro_sdk::types::Address;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {

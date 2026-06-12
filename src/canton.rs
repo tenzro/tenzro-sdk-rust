@@ -159,13 +159,17 @@ impl CantonClient {
     /// Without these grants, the calling user cannot submit DAML
     /// commands on behalf of a newly-allocated party. Pass
     /// `user_id = None` to grant to the calling principal's own
-    /// Canton user.
+    /// Canton user. For users under a non-default
+    /// IdentityProviderConfig (Stage 2 tenants), pass
+    /// `identity_provider_id` — Canton otherwise resolves the user in
+    /// the default IDP and returns 403.
     pub async fn grant_user_rights(
         &self,
         user_id: Option<&str>,
         party: &str,
         can_act_as: bool,
         can_read_as: bool,
+        identity_provider_id: Option<&str>,
     ) -> SdkResult<serde_json::Value> {
         let mut params = serde_json::Map::new();
         if let Some(u) = user_id {
@@ -174,6 +178,12 @@ impl CantonClient {
         params.insert("party".into(), serde_json::Value::String(party.to_string()));
         params.insert("can_act_as".into(), serde_json::Value::Bool(can_act_as));
         params.insert("can_read_as".into(), serde_json::Value::Bool(can_read_as));
+        if let Some(idp) = identity_provider_id {
+            params.insert(
+                "identity_provider_id".into(),
+                serde_json::Value::String(idp.to_string()),
+            );
+        }
         self.rpc
             .call(
                 "tenzro_canton_grantUserRights",

@@ -109,7 +109,6 @@ struct UserOp {
     paymaster_verification_gas_limit: u64,
     paymaster_post_op_gas_limit: u64,
     paymaster_data: Vec<u8>,
-    signature: Vec<u8>,
 }
 
 impl UserOp {

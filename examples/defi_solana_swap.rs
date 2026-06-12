@@ -46,51 +46,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let slot = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_slot tool",
     ).await?;
-    println!("   Current slot: {}", slot.payload);
+    println!("   Current slot: {}", slot.message_id);
 
     let tps = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_tps tool",
     ).await?;
-    println!("   Current TPS:  {}\n", tps.payload);
+    println!("   Current TPS:  {}\n", tps.message_id);
 
     // ─── 4. Query token balances ────────────────────────────────────────────
     println!("4. Querying token balances...");
 
     let sol_balance = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         &format!("Use solana_get_balance tool: address={}", wallet.address),
     ).await?;
-    println!("   SOL balance: {}", sol_balance.payload);
+    println!("   SOL balance: {}", sol_balance.message_id);
 
     let token_accounts = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         &format!("Use solana_get_token_accounts tool: owner={}", wallet.address),
     ).await?;
-    println!("   SPL tokens:  {}\n", token_accounts.payload);
+    println!("   SPL tokens:  {}\n", token_accounts.message_id);
 
     // ─── 5. Fetch prices via Jupiter ────────────────────────────────────────
     println!("5. Fetching real-time prices...");
 
     let sol_price = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_price tool: token_mint=So11111111111111111111111111111111111111112",
     ).await?;
-    println!("   SOL/USD:  {}", sol_price.payload);
+    println!("   SOL/USD:  {}", sol_price.message_id);
 
     // BONK price
     let bonk_price = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_price tool: token_mint=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
     ).await?;
-    println!("   BONK/USD: {}\n", bonk_price.payload);
+    println!("   BONK/USD: {}\n", bonk_price.message_id);
 
     // ─── 6. Get swap quote (SOL → USDC via Jupiter) ─────────────────────────
     println!("6. Getting Jupiter swap quote (1 SOL → USDC)...");
 
     let swap_quote = client.agent().send_message(
+        &agent.agent_id,
         &agent.agent_id,
         "Use solana_swap tool: \
          input_mint=So11111111111111111111111111111111111111112, \
@@ -98,65 +105,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          amount=1000000000, \
          slippage_bps=50",
     ).await?;
-    println!("   Swap quote: {}\n", swap_quote.payload);
+    println!("   Swap quote: {}\n", swap_quote.message_id);
 
     // ─── 7. Discover yield opportunities ────────────────────────────────────
     println!("7. Discovering yield opportunities...");
 
     let yields = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_yield tool",
     ).await?;
-    println!("   Available yields: {}\n", yields.payload);
+    println!("   Available yields: {}\n", yields.message_id);
 
     // ─── 8. Stake SOL for native yield ──────────────────────────────────────
     println!("8. Staking SOL with validator...");
 
     let stake_result = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_stake tool: \
          amount=500000000, \
          validator=Vote111111111111111111111111111111111111111",
     ).await?;
-    println!("   Stake result: {}\n", stake_result.payload);
+    println!("   Stake result: {}\n", stake_result.message_id);
 
     // ─── 9. Resolve .sol domain ─────────────────────────────────────────────
     println!("9. Resolving SNS domain...");
 
     let domain = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_resolve_domain tool: domain=tenzro.sol",
     ).await?;
-    println!("   tenzro.sol → {}\n", domain.payload);
+    println!("   tenzro.sol → {}\n", domain.message_id);
 
     // ─── 10. Inspect NFT via Metaplex DAS ───────────────────────────────────
     println!("10. Looking up NFT metadata...");
 
     let nft = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_nft tool: \
          mint=11111111111111111111111111111111",
     ).await?;
-    println!("   NFT metadata: {}\n", nft.payload);
+    println!("   NFT metadata: {}\n", nft.message_id);
 
     // ─── 11. Check a Solana transaction ─────────────────────────────────────
     println!("11. Inspecting recent transaction...");
 
     let tx = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_transaction tool: \
          signature=5VERv8NMhN1VfGkfF2WBkp2nFPYQochCUqvEhKZz8ygkqsM3cPrHabpKjbrDR4bVzJ",
     ).await?;
-    println!("   Transaction: {}\n", tx.payload);
+    println!("   Transaction: {}\n", tx.message_id);
 
     // ─── 12. Get SPL token info ─────────────────────────────────────────────
     println!("12. Getting SPL token info...");
     let token_info = client.agent().send_message(
         &agent.agent_id,
+        &agent.agent_id,
         "Use solana_get_token_info tool: \
          mint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     ).await?;
-    println!("   USDC info: {}\n", token_info.payload);
+    println!("   USDC info: {}\n", token_info.message_id);
 
     // ─── 13. Settle profits on Tenzro Ledger ────────────────────────────────
     println!("13. Settling swap profits on Tenzro Ledger...");

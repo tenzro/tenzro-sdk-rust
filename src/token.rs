@@ -230,7 +230,7 @@ impl TokenClient {
     ///     "0x1234567890abcdef1234567890abcdef12345678",
     ///     None,
     /// ).await?;
-    /// println!("Native: {}", balance.native.display);
+    /// println!("Native: {} wei", balance.native.balance_wei);
     /// # Ok(())
     /// # }
     /// ```

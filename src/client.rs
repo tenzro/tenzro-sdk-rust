@@ -245,7 +245,15 @@ impl TenzroClient {
         Ok(history)
     }
 
-    /// Submits a raw transaction
+    /// Signs and sends a transfer atomically via the node's hybrid signing
+    /// path (`tenzro_signAndSendTransaction`).
+    ///
+    /// The node resolves the signing wallet from the ambient auth context
+    /// (DPoP-bound bearer JWT), constructs the canonical `Transaction::hash()`
+    /// preimage including the PQ public key, signs both the Ed25519 and
+    /// ML-DSA-65 legs, and submits to the mempool. Private keys never travel
+    /// over the wire. `from` must be the wallet's derived address — the
+    /// admission-time sender-impersonation guard rejects any other sender.
     pub async fn send_transaction(
         &self,
         from: Address,
@@ -257,19 +265,19 @@ impl TenzroClient {
         let mut tx = serde_json::json!({
             "from": format!("0x{}", hex::encode(from.as_bytes())),
             "to": format!("0x{}", hex::encode(to.as_bytes())),
-            "value": format!("0x{:x}", value),
+            "value": value,
         });
 
         if let Some(gl) = gas_limit {
-            tx["gas_limit"] = serde_json::json!(format!("0x{:x}", gl));
+            tx["gas_limit"] = serde_json::json!(gl);
         }
         if let Some(gp) = gas_price {
-            tx["gas_price"] = serde_json::json!(format!("0x{:x}", gp));
+            tx["gas_price"] = serde_json::json!(gp);
         }
 
         let tx_hash: String = self
             .rpc
-            .call("eth_sendRawTransaction", serde_json::json!([tx]))
+            .call("tenzro_signAndSendTransaction", tx)
             .await?;
         Ok(tx_hash)
     }

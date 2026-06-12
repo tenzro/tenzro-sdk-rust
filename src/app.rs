@@ -353,17 +353,19 @@ impl AppClient {
             .unwrap_or("0x0")
             .to_string();
 
-        // Step 2: fund from master wallet
+        // Step 2: fund from master wallet via the node's hybrid-signing path.
+        // The node signs both Ed25519 + ML-DSA-65 legs with the wallet
+        // resolved from the ambient auth context (DPoP-bound bearer JWT).
         if initial_funding_wei > 0 {
             let _tx_hash: String = self
                 .rpc
                 .call(
-                    "eth_sendRawTransaction",
-                    serde_json::json!([{
+                    "tenzro_signAndSendTransaction",
+                    serde_json::json!({
                         "from": self.master_wallet.address,
                         "to": user_address,
-                        "value": format!("0x{:x}", initial_funding_wei),
-                    }]),
+                        "value": initial_funding_wei.to_string(),
+                    }),
                 )
                 .await?;
         }
@@ -395,12 +397,12 @@ impl AppClient {
         let tx_hash: String = self
             .rpc
             .call(
-                "eth_sendRawTransaction",
-                serde_json::json!([{
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
                     "from": self.master_wallet.address,
                     "to": user_address,
-                    "value": format!("0x{:x}", amount_wei),
-                }]),
+                    "value": amount_wei.to_string(),
+                }),
             )
             .await?;
 
@@ -502,14 +504,12 @@ impl AppClient {
         let tx_hash: String = self
             .rpc
             .call(
-                "eth_sendRawTransaction",
-                serde_json::json!([{
+                "tenzro_signAndSendTransaction",
+                serde_json::json!({
                     "from": self.master_wallet.address,
                     "to": to,
-                    "value": format!("0x{:x}", amount_wei),
-                    "sponsor": self.master_wallet.address,
-                    "on_behalf_of": user_address,
-                }]),
+                    "value": amount_wei.to_string(),
+                }),
             )
             .await?;
 
