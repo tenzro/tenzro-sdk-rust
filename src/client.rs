@@ -491,6 +491,13 @@ impl TenzroClient {
         BridgeClient::new(self.rpc.clone())
     }
 
+    /// Creates a Chainlink CCIP client — the regulated-rail entry
+    /// point for institutional cross-chain legs (OCR commit-store +
+    /// RMN ARM blessing).
+    pub fn ccip(&self) -> crate::ccip::CcipClient {
+        crate::ccip::CcipClient::new(self.rpc.clone())
+    }
+
     /// Creates an agent payment client for spending policies and transactions
     pub fn agent_payments(&self) -> AgentPaymentClient {
         AgentPaymentClient::new(self.rpc.clone())

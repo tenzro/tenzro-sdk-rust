@@ -84,6 +84,7 @@ pub mod bridge;
 pub mod caip;
 pub mod canton;
 pub mod capital;
+pub mod ccip;
 pub mod cct;
 pub mod circuit_breaker;
 pub mod client;
@@ -181,6 +182,10 @@ pub use bridge::BridgeClient;
 pub use canton::{
     CantonClient, CantonDomain, CantonDomainList, DamlCommandResult, DamlContract,
     DamlContractsQuery, DamlContractsResponse,
+};
+pub use ccip::{
+    CcipClient, CcipExecutionState, CcipFeeQuote, CcipSendEnvelope, CcipTokenAmount,
+    CcipTransferResult,
 };
 pub use cct::{CctClient, CctPool, CctPoolList};
 pub use circuit_breaker::CircuitBreakerClient;
