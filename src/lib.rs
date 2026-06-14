@@ -238,8 +238,8 @@ pub use payment::{
 };
 pub use seed_agent::SeedAgentClient;
 pub use provider::{
-    ChatMessage, ChatResponse, DownloadProgress, HardwareProfile, ModelEndpoint, ModelLoad,
-    ParticipateResponse, ProviderClient, ProviderStats,
+    ChatMessage, ChatOptions, ChatResponse, DownloadProgress, HardwareProfile, ModelEndpoint,
+    ModelLoad, ParticipateResponse, ProviderClient, ProviderStats,
 };
 pub use settlement::{SettlementClient, SettlementRequest, SettleResponse};
 pub use signer::{

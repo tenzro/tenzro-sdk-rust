@@ -194,6 +194,42 @@ impl ProviderClient {
             .map_err(|e| SdkError::RpcError(format!("Failed to parse chat response: {}", e)))
     }
 
+    /// Send a chat completion with generation options. Use this when
+    /// you need to pass [`ChatOptions`] (Multi-Token Prediction
+    /// `draft_n`, max_tokens, temperature, top_p, etc.).
+    ///
+    /// MTP throughput uplift requires the target model to declare a
+    /// drafter in its catalog entry (`HfModelEntry.drafter_id` +
+    /// `mtp_kind`). Gemma 4 12B and 31B currently advertise this. When
+    /// `draft_n` is set on a model whose runtime cannot satisfy it,
+    /// the node returns a structured `MtpUnavailable` error.
+    pub async fn chat_with(
+        &self,
+        model_id: &str,
+        messages: Vec<ChatMessage>,
+        opts: ChatOptions,
+    ) -> SdkResult<ChatResponse> {
+        let mut params = json!({
+            "model_id": model_id,
+            "messages": messages,
+        });
+        if let Some(t) = opts.temperature {
+            params["temperature"] = json!(t);
+        }
+        if let Some(p) = opts.top_p {
+            params["top_p"] = json!(p);
+        }
+        if let Some(m) = opts.max_tokens {
+            params["max_tokens"] = json!(m);
+        }
+        if let Some(n) = opts.draft_n {
+            params["draft_n"] = json!(n);
+        }
+        let result = self.rpc.call("tenzro_chat", json!([params])).await?;
+        serde_json::from_value(result)
+            .map_err(|e| SdkError::RpcError(format!("Failed to parse chat response: {}", e)))
+    }
+
     /// Get hardware profile of the node
     ///
     /// # Example
@@ -578,6 +614,56 @@ pub struct ChatResponse {
     pub model_id: String,
     /// Number of tokens used
     pub tokens_used: u32,
+}
+
+/// Optional generation knobs for [`ProviderClient::chat_with`].
+///
+/// Use the `with_*` builder methods to set fields fluently; all
+/// fields default to `None`, in which case the node falls back to
+/// its own per-model defaults.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ChatOptions {
+    /// Sampling temperature (0.0..=2.0). Default: 0.7.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    /// Top-p nucleus-sampling threshold. Default: 0.9.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    /// Maximum new tokens to generate. Default: 512.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
+    /// Multi-Token-Prediction draft count (1..=6). Only meaningful on
+    /// targets whose catalog entry declares a drafter
+    /// (`HfModelEntry.mtp_kind == DraftMtp`). Unsloth recommends 2 as
+    /// a starting point on Gemma 4; optimal value is hardware-
+    /// dependent. When the runtime can't satisfy MTP the node returns
+    /// a structured `MtpUnavailable` error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_n: Option<u8>,
+}
+
+impl ChatOptions {
+    /// Set the sampling temperature.
+    pub fn with_temperature(mut self, t: f64) -> Self {
+        self.temperature = Some(t);
+        self
+    }
+    /// Set the top-p threshold.
+    pub fn with_top_p(mut self, p: f64) -> Self {
+        self.top_p = Some(p);
+        self
+    }
+    /// Set the max-tokens cap.
+    pub fn with_max_tokens(mut self, n: u32) -> Self {
+        self.max_tokens = Some(n);
+        self
+    }
+    /// Enable Multi-Token Prediction with the given draft count
+    /// (clamped to 1..=6).
+    pub fn with_draft_n(mut self, n: u8) -> Self {
+        self.draft_n = Some(n.clamp(1, 6));
+        self
+    }
 }
 
 /// Model download progress
