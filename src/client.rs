@@ -491,9 +491,11 @@ impl TenzroClient {
         BridgeClient::new(self.rpc.clone())
     }
 
-    /// Creates a Chainlink CCIP client — the regulated-rail entry
-    /// point for institutional cross-chain legs (OCR commit-store +
-    /// RMN ARM blessing).
+    /// Creates a Chainlink CCIP client. Wraps the `tenzro_ccip*`
+    /// JSON-RPC namespace on the node (fee quote, send, track,
+    /// supported chains/tokens/lanes, CCT pool inspection, rate
+    /// limits, and a router-mediated `bridge` that pins the route
+    /// to the CCIP adapter).
     pub fn ccip(&self) -> crate::ccip::CcipClient {
         crate::ccip::CcipClient::new(self.rpc.clone())
     }

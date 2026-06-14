@@ -1,13 +1,12 @@
-//! Chainlink CCIP client — first-class regulated-rail SDK surface.
+//! Chainlink CCIP client.
 //!
-//! CCIP is Tenzro's institutional cross-chain rail: a Chainlink-operated
-//! OCR commit-store committee plus an independent RMN (Risk Management
-//! Network) ARM that must co-bless every inbound message. Use this
-//! client when the bridge leg must ride a regulated, attested rail
-//! rather than a generic permissionless protocol.
+//! Wraps the `tenzro_ccip*` JSON-RPC namespace on the node. CCIP
+//! uses an OCR commit-store committee plus an independent RMN
+//! (Risk Management Network) ARM that co-attest every inbound
+//! message. Use this client when the bridge leg requires CCIP
+//! specifically rather than letting `BridgeRouter` pick.
 //!
-//! The 9 methods mirror the `tenzro_ccip*` JSON-RPC namespace on the
-//! node:
+//! The 9 methods mirror the node's `tenzro_ccip*` RPC namespace:
 //!
 //! - [`get_fee`](CcipClient::get_fee) — Router.getFee() eth_call
 //! - [`send`](CcipClient::send) — Router.ccipSend() calldata + msg.value
@@ -121,8 +120,8 @@ pub struct CcipTransferResult {
     pub adapter: String,
 }
 
-/// Client for the Chainlink CCIP regulated rail. Mirrors the
-/// `tenzro_ccip*` RPC family on the node.
+/// Client for Chainlink CCIP. Mirrors the `tenzro_ccip*` RPC
+/// family on the node.
 #[derive(Clone)]
 pub struct CcipClient {
     rpc: Arc<RpcClient>,
@@ -282,10 +281,10 @@ impl CcipClient {
             .await
     }
 
-    /// Bridge tokens through the node's BridgeRouter, pinned to the
-    /// CCIP regulated rail. This is the institutional-leg entry point:
-    /// the router refuses the call if no CCIP adapter is registered
-    /// rather than silently falling back to a generic adapter.
+    /// Bridge tokens through the node's BridgeRouter with the CCIP
+    /// adapter pinned. The router refuses the call if no CCIP
+    /// adapter is registered rather than falling back to a generic
+    /// adapter.
     pub async fn bridge(
         &self,
         source_chain: &str,
