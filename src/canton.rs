@@ -323,6 +323,127 @@ impl CantonClient {
     pub async fn get_my_user(&self) -> SdkResult<serde_json::Value> {
         self.rpc.call("tenzro_canton_getMyUser", serde_json::json!({})).await
     }
+
+    /// Watch active contracts for a specific party
+    /// (`tenzro_canton_watchParty`).
+    ///
+    /// The presenting API key must (a) carry a `canton_user_id`
+    /// binding and (b) be authorized for `party`. Either the party
+    /// matches the key's resolved `primaryParty`, or the party is on
+    /// the key's `can_read_as_parties` / `can_act_as_parties`
+    /// agent-delegation whitelist. Anything else returns `-32004`.
+    ///
+    /// Used by autonomous agents that need to subscribe to a specific
+    /// counterparty party they have been granted read access on,
+    /// rather than reading their own primary party.
+    pub async fn watch_party(
+        &self,
+        party: &str,
+        template_ids: &[&str],
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_canton_watchParty",
+                serde_json::json!({
+                    "party": party,
+                    "template_ids": template_ids,
+                }),
+            )
+            .await
+    }
+
+    /// Operator-only: register a per-tenant Canton
+    /// IdentityProviderConfig (Stage 2.b). Admin-token-gated at the
+    /// node — non-admin callers see `-32001`.
+    ///
+    /// `issuer_url`, `jwks_url`, `audience` come from the tenant's
+    /// own OAuth issuer; subsequent `tenzro_createApiKey` calls
+    /// against this IDP route the tenant's JWTs through their own
+    /// upstream while staying isolated from the operator's IDP.
+    pub async fn create_idp(
+        &self,
+        identity_provider_id: &str,
+        issuer_url: &str,
+        jwks_url: &str,
+        audience: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_canton_createIdp",
+                serde_json::json!({
+                    "identity_provider_id": identity_provider_id,
+                    "issuer_url": issuer_url,
+                    "jwks_url": jwks_url,
+                    "audience": audience,
+                }),
+            )
+            .await
+    }
+
+    /// Operator-only: list every Canton IdentityProviderConfig the
+    /// participant is configured against (Stage 2.b roster).
+    /// Admin-token-gated.
+    pub async fn list_idps(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_canton_listIdps", serde_json::json!({}))
+            .await
+    }
+
+    /// Operator-only: delete a Canton IdentityProviderConfig. The
+    /// tenant whose IDP is being deleted must already be revoked or
+    /// migrated — Canton refuses to delete an IDP that has live
+    /// users. Admin-token-gated.
+    pub async fn delete_idp(&self, identity_provider_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_canton_deleteIdp",
+                serde_json::json!({
+                    "identity_provider_id": identity_provider_id,
+                }),
+            )
+            .await
+    }
+
+    /// Operator-only: mirror a Tenzro workflow into a Canton
+    /// synchronizer as a `Tenzro.Workflow:WorkflowAnchor` contract.
+    /// The contract owner is the operator's participant-default
+    /// party — the mirrored payload is internal node state, so this
+    /// surface is admin-token-gated at the node.
+    pub async fn mirror_workflow_to_canton(
+        &self,
+        workflow_id: &str,
+        synchronizer_id: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_mirrorWorkflowToCanton",
+                serde_json::json!({
+                    "workflow_id": workflow_id,
+                    "synchronizer_id": synchronizer_id,
+                }),
+            )
+            .await
+    }
+
+    /// Operator-only: mirror an Obligation under an already-mirrored
+    /// workflow as a `Tenzro.Workflow:ObligationAnchor` contract.
+    /// `parent_contract_id` is the WorkflowAnchor created by
+    /// `mirror_workflow_to_canton`. Admin-token-gated.
+    pub async fn mirror_obligation_to_canton(
+        &self,
+        obligation_id: &str,
+        parent_contract_id: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_mirrorObligationToCanton",
+                serde_json::json!({
+                    "obligation_id": obligation_id,
+                    "parent_contract_id": parent_contract_id,
+                }),
+            )
+            .await
+    }
 }
 
 /// Response envelope for `tenzro_listCantonDomains`
