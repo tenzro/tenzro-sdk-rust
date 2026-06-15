@@ -85,45 +85,54 @@ impl CantonClient {
 
     /// Submits a DAML `create` command on the configured Canton domain.
     ///
-    /// The node mediates the call to the Canton participant — callers
+    /// `act_as` overrides the party the command is submitted as. When
+    /// `None`, the node resolves the party from the calling API key's
+    /// bound `canton_user_id` (`primaryParty`). Pass `Some(party)` to
+    /// pin the command to a specific party — the node verifies the
+    /// caller is authorized on that party before forwarding.
+    ///
+    /// The node mediates the call to the Canton participant; callers
     /// never handle the upstream credentials.
     pub async fn create_contract(
         &self,
         template_id: &str,
         create_arguments: serde_json::Value,
+        act_as: Option<&str>,
     ) -> SdkResult<DamlCommandResult> {
-        self.rpc
-            .call(
-                "tenzro_submitDamlCommand",
-                serde_json::json!({
-                    "command_type": "create",
-                    "template_id": template_id,
-                    "create_arguments": create_arguments,
-                }),
-            )
-            .await
+        let mut params = serde_json::json!({
+            "command_type": "create",
+            "template_id": template_id,
+            "create_arguments": create_arguments,
+        });
+        if let Some(party) = act_as {
+            params["act_as"] = serde_json::Value::String(party.to_string());
+        }
+        self.rpc.call("tenzro_submitDamlCommand", params).await
     }
 
     /// Submits a DAML `exercise` command on an existing contract.
+    ///
+    /// `act_as` overrides the party the command is submitted as. See
+    /// [`create_contract`](Self::create_contract) for the semantics.
     pub async fn exercise_choice(
         &self,
         template_id: &str,
         contract_id: &str,
         choice: &str,
         choice_argument: serde_json::Value,
+        act_as: Option<&str>,
     ) -> SdkResult<DamlCommandResult> {
-        self.rpc
-            .call(
-                "tenzro_submitDamlCommand",
-                serde_json::json!({
-                    "command_type": "exercise",
-                    "template_id": template_id,
-                    "contract_id": contract_id,
-                    "choice": choice,
-                    "choice_argument": choice_argument,
-                }),
-            )
-            .await
+        let mut params = serde_json::json!({
+            "command_type": "exercise",
+            "template_id": template_id,
+            "contract_id": contract_id,
+            "choice": choice,
+            "choice_argument": choice_argument,
+        });
+        if let Some(party) = act_as {
+            params["act_as"] = serde_json::Value::String(party.to_string());
+        }
+        self.rpc.call("tenzro_submitDamlCommand", params).await
     }
 
     /// Allocate a new party on the participant via `POST /v2/parties`.
