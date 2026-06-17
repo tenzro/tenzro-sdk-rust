@@ -82,6 +82,7 @@ pub mod axelar;
 pub mod babylon;
 pub mod bridge;
 pub mod caip;
+pub mod discovery;
 pub mod canton;
 pub mod capital;
 pub mod ccip;

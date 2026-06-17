@@ -718,6 +718,14 @@ impl TenzroClient {
         crate::caip::CaipClient::new(self.rpc.clone())
     }
 
+    /// Discovery + helper RPCs for the IBC-Eureka, NEAR Chain
+    /// Signatures, BitVM2, Hyperbridge, Stargate V2 Hydra, Universal
+    /// Resolver, SIWT, KERI, MPC pre-sign / PKR, global supply, and
+    /// Institution-identity modules.
+    pub fn discovery(&self) -> crate::discovery::DiscoveryClient {
+        crate::discovery::DiscoveryClient::new(self.rpc.clone())
+    }
+
     /// Creates an NFT client for collection and token management
     pub fn nft(&self) -> NftClient {
         NftClient::new(self.rpc.clone())
