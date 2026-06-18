@@ -146,6 +146,59 @@ impl DiscoveryClient {
             .call("tenzro_validateLei", serde_json::json!({ "lei": lei }))
             .await
     }
+
+    /// Decentralized MoE shard map for `model_id`: distinct providers
+    /// holding each `(layer, expert)` for the model, per-expert
+    /// replication factor, under-replicated experts, hot experts, and
+    /// role counts (ExpertHolder / Router / Prefill / Decode / Replica).
+    pub async fn moe_shard_map(&self, model_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_moeShardMap",
+                serde_json::json!({ "model_id": model_id }),
+            )
+            .await
+    }
+
+    /// Build a dispatch plan for `model_id` given per-token top-k routing
+    /// decisions. `routings` is `[{token_index, experts: [{layer,
+    /// expert}, ...]}, ...]`. When `allow_cold` is false (default) the
+    /// planner only picks warm holders.
+    pub async fn moe_plan_dispatch(
+        &self,
+        model_id: &str,
+        routings: serde_json::Value,
+        allow_cold: bool,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_moePlanDispatch",
+                serde_json::json!({
+                    "model_id": model_id,
+                    "routings": routings,
+                    "allow_cold": allow_cold,
+                }),
+            )
+            .await
+    }
+
+    /// Current governance-tuned replication policy.
+    pub async fn moe_replication_policy(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_moeReplicationPolicy", serde_json::json!([]))
+            .await
+    }
+
+    /// Catalog-side MoE topology (`num_experts`, `experts_per_token`,
+    /// `shared_experts`, `params_per_expert_x10`) for `model_id`.
+    pub async fn moe_catalog_shape(&self, model_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_moeCatalogShape",
+                serde_json::json!({ "model_id": model_id }),
+            )
+            .await
+    }
 }
 
 /// JSON payload for `siwt_build_message`. Mirrors the
