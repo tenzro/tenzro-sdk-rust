@@ -5,7 +5,7 @@
 
 [package]
 name = "tenzro-sdk"
-version = "0.4.13"
+version = "0.4.14"
 edition = "2024"
 description = "Tenzro Network SDK — wallets, identity, agents, inference, bridge, crypto, TEE, ZK proofs, custody, and settlement"
 license = "Apache-2.0"
@@ -15,6 +15,28 @@ documentation = "https://tenzro.com/docs/rust-sdk"
 readme = "README.md"
 keywords = ["blockchain", "ai", "agents", "mcp", "web3"]
 categories = ["api-bindings", "cryptography", "web-programming"]
+
+[features]
+# Default-off cargo features.
+#
+# `embedded` — in-process JSON-RPC dispatch against an embedded
+# `tenzro-node`. Source paths are staged behind `#[cfg(feature =
+# "embedded")]` in `src/rpc.rs` and `src/client.rs`. The feature is
+# DECLARED here so the cfg references compile cleanly, but the
+# corresponding `tenzro-node` optional dep is intentionally NOT
+# declared because `tenzro-node` is not on crates.io yet — declaring
+# an optional dep on a non-resolvable crate fails `cargo check` from
+# a fresh clone.
+#
+# When `tenzro-node` reaches crates.io, add to this section:
+#   embedded = ["dep:tenzro-node"]
+# and add to [dependencies]:
+#   tenzro-node = { version = "0.1", optional = true }
+# No source changes needed at that point — the source gates are
+# already in place. Until then, enabling this feature fails to build,
+# which is the correct outcome (it relies on an unreleased crate).
+default = []
+embedded = []
 
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "stream"] }

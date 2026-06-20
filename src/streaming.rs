@@ -75,7 +75,12 @@ impl StreamingClient {
         message: &str,
         on_token: impl Fn(&str),
     ) -> SdkResult<StreamResult> {
-        let endpoint = self.rpc.endpoint();
+        let endpoint = self.rpc.endpoint().ok_or_else(|| {
+            crate::error::SdkError::ConnectionError(
+                "Streaming chat is HTTP-only; not available on the embedded backend"
+                    .to_string(),
+            )
+        })?;
         let api_base = if endpoint.contains("rpc.tenzro.network") {
             endpoint.replace("rpc.tenzro.network", "api.tenzro.network")
         } else if endpoint.contains("localhost:8545") || endpoint.contains("127.0.0.1:8545") {
@@ -157,7 +162,16 @@ impl StreamingClient {
     ) -> SdkResult<mpsc::Receiver<String>> {
         let (tx, rx) = mpsc::channel::<String>(256);
 
-        let endpoint = self.rpc.endpoint().to_string();
+        let endpoint = self
+            .rpc
+            .endpoint()
+            .ok_or_else(|| {
+                crate::error::SdkError::ConnectionError(
+                    "Streaming chat is HTTP-only; not available on the embedded backend"
+                        .to_string(),
+                )
+            })?
+            .to_string();
         let api_base = if endpoint.contains("rpc.tenzro.network") {
             endpoint.replace("rpc.tenzro.network", "api.tenzro.network")
         } else if endpoint.contains("localhost:8545") || endpoint.contains("127.0.0.1:8545") {

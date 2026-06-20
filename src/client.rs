@@ -102,6 +102,38 @@ impl TenzroClient {
         Ok(client)
     }
 
+    /// Constructs a client that dispatches JSON-RPC calls directly to an
+    /// embedded [`tenzro_node::TenzroNode`] running in the same process.
+    /// No HTTP, no localhost port, no IPC overhead — the same gate +
+    /// handler chain the HTTP endpoint runs, invoked as a function
+    /// call. Available behind the `embedded` cargo feature.
+    ///
+    /// Intended for desktop apps (e.g. `tenzro-inference`) and
+    /// in-process test harnesses where the SDK consumer and the node
+    /// live in the same process.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use std::sync::Arc;
+    /// use tenzro_sdk::TenzroClient;
+    ///
+    /// // `node_handle` came from `tenzro_node::spawn_in_background(...)`
+    /// let client = TenzroClient::embedded(node_handle.node());
+    /// let block = client.block_number().await?;
+    /// ```
+    #[cfg(feature = "embedded")]
+    pub fn embedded(node: Arc<tenzro_node::TenzroNode>) -> Self {
+        let config = SdkConfig::builder()
+            .endpoint("embedded:///")
+            .build()
+            .expect("static embedded config builds");
+        Self {
+            config: Arc::new(config),
+            rpc: Arc::new(RpcClient::embedded(node)),
+        }
+    }
+
     /// Checks if the node is reachable by calling `eth_chainId`
     pub async fn is_connected(&self) -> bool {
         self.get_chain_id().await.is_ok()
@@ -800,8 +832,11 @@ impl TenzroClient {
         &self.config
     }
 
-    /// Returns the RPC endpoint URL
-    pub fn endpoint(&self) -> &str {
+    /// Returns the RPC endpoint URL for the HTTP backend, or `None`
+    /// when this client was constructed with the embedded backend
+    /// (the embedded backend has no URL — calls dispatch directly into
+    /// an `Arc<TenzroNode>` in the same process).
+    pub fn endpoint(&self) -> Option<&str> {
         self.rpc.endpoint()
     }
 
