@@ -437,6 +437,18 @@ impl TenzroClient {
         ProviderClient::new(self.rpc.clone())
     }
 
+    /// Creates a storage client for decentralized object storage and streaming
+    /// storage deals (targets a node serving the `storage` role).
+    pub fn storage(&self) -> crate::storage::StorageClient {
+        crate::storage::StorageClient::new(self.rpc.clone())
+    }
+
+    /// Creates a compute client for fixed-term CPU/GPU rentals and streaming
+    /// compute deals (targets a node serving the `ai` role).
+    pub fn compute(&self) -> crate::compute::ComputeClient {
+        crate::compute::ComputeClient::new(self.rpc.clone())
+    }
+
     /// Creates a task client for task marketplace operations
     pub fn task(&self) -> TaskClient {
         TaskClient::new(self.rpc.clone())

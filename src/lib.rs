@@ -90,6 +90,7 @@ pub mod cct;
 pub mod circuit_breaker;
 pub mod client;
 pub mod compliance;
+pub mod compute;
 pub mod config;
 pub mod contract;
 pub mod cortex;
@@ -113,6 +114,28 @@ pub mod nanopayment;
 pub mod nft;
 pub mod passkey;
 pub mod passkey_client;
+
+/// Hardware-backed device keys + the biometric `KeystoreUnlocker` that makes
+/// an embedded node's FROST wallet persist across restarts (macOS/iOS Secure
+/// Enclave + Touch ID). Re-exports the [`tenzro-device-key`] crate so a Rust
+/// embedder gets the unlocker without a second direct dependency:
+///
+/// ```ignore
+/// use tenzro_sdk::device_key::SecureEnclaveUnlocker;
+/// let unlocker = std::sync::Arc::new(
+///     SecureEnclaveUnlocker::under_data_dir(&node_config.data_dir),
+/// );
+/// // tenzro_node::spawn_in_background_with_unlocker(node_config, unlocker).await?;
+/// ```
+///
+/// Gated behind the `device-key` cargo feature, which is declared-but-inert
+/// until `tenzro-device-key` is published to crates.io — same staging as the
+/// `embedded` feature. See `Cargo.toml` for the one-line wiring to flip at
+/// publish time.
+#[cfg(feature = "device-key")]
+pub mod device_key {
+    pub use tenzro_device_key::*;
+}
 pub mod payment;
 pub mod permit2;
 pub mod provider;
@@ -125,6 +148,7 @@ pub mod skill;
 pub mod sla;
 pub mod snapshot;
 pub mod staking;
+pub mod storage;
 pub mod streaming;
 pub mod svm_cross_vm;
 pub mod task;
@@ -150,7 +174,10 @@ pub use error::{SdkError, SdkResult};
 pub use rpc::RpcClient;
 
 // Re-export core types
-pub use types::{Address, AgentIdentity, AgentTemplate, ModelInfo, TaskInfo, TaskQuote};
+pub use types::{
+    Address, AgentIdentity, AgentTemplate, MmprojSpec, ModelInfo, ServingProfile, TaskInfo,
+    TaskQuote,
+};
 
 // Re-export SVM Cross-VM constants and instruction builders
 pub use svm_cross_vm::{

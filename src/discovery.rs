@@ -199,6 +199,49 @@ impl DiscoveryClient {
             )
             .await
     }
+
+    /// Peer IDs currently discovered on this node's local segment via mDNS.
+    /// Returns `{ local_peers: [..], count, available }`; `available` is
+    /// false when local discovery is not running.
+    pub async fn local_peers(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_localPeers", serde_json::json!([])).await
+    }
+
+    /// This node's sustained connectivity tier (`direct` / `relay_only` /
+    /// `unreachable`). Returns `{ tier, available }`.
+    pub async fn node_reachability(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_nodeReachability", serde_json::json!([])).await
+    }
+
+    /// This node's hardware self-profile from the ggml device API: build
+    /// commit, CPU arch, OS, devices, and the derived serving VRAM / backend /
+    /// capability key.
+    pub async fn node_profile(&self) -> SdkResult<serde_json::Value> {
+        self.rpc.call("tenzro_nodeProfile", serde_json::json!([])).await
+    }
+
+    /// Deterministic cluster placement for a model across candidate members.
+    /// `model` is `{ layers, hidden_dim, total_vram_gb }`; `members` is the
+    /// candidate `ClusterMember` array. When `force` is true a cluster is
+    /// requested even if one member fits the whole model. Returns the fit
+    /// decision and, when a cluster forms, the ordered per-member layer stages.
+    pub async fn cluster_plan(
+        &self,
+        model: serde_json::Value,
+        members: serde_json::Value,
+        force: bool,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_clusterPlan",
+                serde_json::json!({
+                    "model": model,
+                    "members": members,
+                    "user_forced": force,
+                }),
+            )
+            .await
+    }
 }
 
 /// JSON payload for `siwt_build_message`. Mirrors the

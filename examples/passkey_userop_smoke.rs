@@ -211,7 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let chain_id: u64 = 1337;
     let user_op = UserOp {
         sender: sa_bytes.clone(),
-        nonce: 0,
+        nonce: tenzro_vm::account_abstraction::Nonce::from_seq(0).to_bytes(),
         call_data: Vec::new(), // no inner call — just exercise validation
         call_gas_limit: 100_000,
         verification_gas_limit: 500_000,

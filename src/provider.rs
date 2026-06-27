@@ -95,6 +95,13 @@ impl ProviderClient {
 
     /// Start serving a model on the network
     ///
+    /// When a model is too large for a single host, the node auto-clusters:
+    /// it reads the GGUF header for layer count and hidden dimension,
+    /// discovers LAN members from gossiped cluster announcements, and runs a
+    /// layer-wise pipeline across them. No extra arguments are required — the
+    /// node decides single-host vs. cluster from the model shape and the
+    /// reachable members.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -254,7 +261,10 @@ impl ProviderClient {
         })
     }
 
-    /// Set node role (validator, provider, light_client)
+    /// Set this node's active roles. One stake backs every role.
+    ///
+    /// `roles` is a comma-separated set of role tokens: `validator`, `ai`,
+    /// `storage`, `tee`, `user`. The empty string resolves to a client node.
     ///
     /// # Example
     ///
@@ -265,16 +275,27 @@ impl ProviderClient {
     /// # let config = SdkConfig::testnet();
     /// # let client = TenzroClient::connect(config).await?;
     /// let provider = client.provider();
-    /// provider.set_role("provider").await?;
-    /// println!("Role updated");
+    /// provider.set_roles("validator,storage,ai").await?;
+    /// println!("Roles updated");
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn set_role(&self, role: &str) -> SdkResult<()> {
+    pub async fn set_roles(&self, roles: &str) -> SdkResult<()> {
         self.rpc
-            .call::<serde_json::Value>("tenzro_setRole", json!([role]))
+            .call::<serde_json::Value>("tenzro_setRole", json!([{ "roles": roles }]))
             .await?;
         Ok(())
+    }
+
+    /// Get this node's active roles (normalized role-token strings).
+    pub async fn get_roles(&self) -> SdkResult<Vec<String>> {
+        let result: serde_json::Value = self.rpc.call("tenzro_getRole", json!([])).await?;
+        let roles = result
+            .get("roles")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+        Ok(roles)
     }
 
     /// Register as a provider on the network

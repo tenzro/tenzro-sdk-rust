@@ -134,6 +134,52 @@ pub struct ModelInfo {
     /// Model metadata
     #[serde(default)]
     pub metadata: serde_json::Value,
+    /// Whether the model accepts image input (vision-language). When true,
+    /// `mmproj` carries the projector filename llama.cpp loads via `--mmproj`.
+    #[serde(default)]
+    pub multimodal: bool,
+    /// Multimodal projector filename for vision-capable models. `None` for
+    /// text-only models. Populated from `tenzro_modelMetadata`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mmproj: Option<MmprojSpec>,
+    /// Catalog-recommended serving profile (sampler defaults, chat-template
+    /// requirement, reasoning default). `None` when the source response
+    /// didn't include it (e.g. a plain `tenzro_listModels` row).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub serving: Option<ServingProfile>,
+}
+
+/// Multimodal projector descriptor for a vision-capable model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MmprojSpec {
+    /// Projector filename within the model's HF repo (e.g. `mmproj-F16.gguf`).
+    #[serde(default)]
+    pub filename: String,
+}
+
+/// Catalog-recommended serving configuration for a model. Mirrors the
+/// `serving` object returned by `tenzro_modelMetadata`. These are the
+/// model author's recommended defaults; per-request parameters override them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServingProfile {
+    /// Sampling temperature.
+    #[serde(default)]
+    pub temperature: f32,
+    /// Nucleus (top-p) sampling cutoff.
+    #[serde(default)]
+    pub top_p: f32,
+    /// Top-k cutoff (0 = disabled).
+    #[serde(default)]
+    pub top_k: u32,
+    /// Min-p cutoff (0.0 = disabled).
+    #[serde(default)]
+    pub min_p: f32,
+    /// Whether the chat template (`--jinja`) is required for correct output.
+    #[serde(default)]
+    pub jinja_required: bool,
+    /// Whether reasoning/thinking mode is on by default for this model.
+    #[serde(default)]
+    pub reasoning_default: bool,
 }
 
 // ---------------------------------------------------------------------------
