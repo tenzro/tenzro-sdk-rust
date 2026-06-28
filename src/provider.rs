@@ -6,7 +6,7 @@
 use crate::error::{SdkError, SdkResult};
 use crate::rpc::RpcClient;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 
 /// Provider client for network participation and model serving
@@ -93,14 +93,15 @@ impl ProviderClient {
         })
     }
 
-    /// Start serving a model on the network
+    /// Start serving a model on the network with default placement.
     ///
     /// When a model is too large for a single host, the node auto-clusters:
     /// it reads the GGUF header for layer count and hidden dimension,
     /// discovers LAN members from gossiped cluster announcements, and runs a
     /// layer-wise pipeline across them. No extra arguments are required — the
     /// node decides single-host vs. cluster from the model shape and the
-    /// reachable members.
+    /// reachable members. Use [`serve_model_with`](Self::serve_model_with) to
+    /// force a cluster, force single-host, or serve privately.
     ///
     /// # Example
     ///
@@ -117,8 +118,37 @@ impl ProviderClient {
     /// # }
     /// ```
     pub async fn serve_model(&self, model_id: &str) -> SdkResult<()> {
+        self.serve_model_with(model_id, ServeOptions::default()).await
+    }
+
+    /// Start serving a model with explicit placement and visibility options.
+    ///
+    /// - `force_cluster` (`user_forced`): split across the LAN cluster even
+    ///   when the model fits one host (trades decode speed for memory).
+    /// - `force_single`: never form a cluster; serve single-host (errors at
+    ///   the node only if the model cannot fit, which the SDK surfaces).
+    /// - `visibility`: `Network` (default) gossips the model so any peer can
+    ///   route to it; `Private` registers it locally without announcing, so it
+    ///   is reachable only over a direct/LAN connection.
+    ///
+    /// Use [`Discovery::cluster_plan`](crate::discovery::Discovery::cluster_plan)
+    /// first to preview the layer split before serving.
+    pub async fn serve_model_with(
+        &self,
+        model_id: &str,
+        opts: ServeOptions,
+    ) -> SdkResult<()> {
+        let mut params = serde_json::Map::new();
+        params.insert("model_id".into(), json!(model_id));
+        if opts.force_cluster {
+            params.insert("user_forced".into(), json!(true));
+        }
+        if opts.force_single {
+            params.insert("force_single".into(), json!(true));
+        }
+        params.insert("visibility".into(), json!(opts.visibility.as_str()));
         self.rpc
-            .call::<serde_json::Value>("tenzro_serveModel", json!([model_id]))
+            .call::<serde_json::Value>("tenzro_serveModel", Value::Object(params))
             .await?;
         Ok(())
     }
@@ -593,6 +623,39 @@ impl ProviderClient {
         serde_json::from_value(result)
             .map_err(|e| SdkError::RpcError(format!("Failed to parse list_providers response: {}", e)))
     }
+}
+
+/// Whether a served model is announced to the network or kept local-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Visibility {
+    /// Gossip the model so any peer can route inference to it.
+    #[default]
+    Network,
+    /// Register locally without announcing; reachable only over a direct/LAN
+    /// connection.
+    Private,
+}
+
+impl Visibility {
+    /// Wire string sent to `tenzro_serveModel`.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Visibility::Network => "network",
+            Visibility::Private => "private",
+        }
+    }
+}
+
+/// Placement and visibility options for [`ProviderClient::serve_model_with`].
+#[derive(Debug, Clone, Default)]
+pub struct ServeOptions {
+    /// Split across the LAN cluster even when the model fits one host.
+    pub force_cluster: bool,
+    /// Never form a cluster; serve single-host.
+    pub force_single: bool,
+    /// Network (default) or private visibility.
+    pub visibility: Visibility,
 }
 
 /// Response from network participation

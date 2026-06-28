@@ -242,6 +242,33 @@ impl DiscoveryClient {
             )
             .await
     }
+
+    /// Preview how a downloaded model would be placed using the node's live
+    /// view: derives the model shape from the GGUF header and discovers LAN
+    /// members from gossip — no manual dimensions or member list required.
+    /// `force` requests a cluster even when the model fits one member;
+    /// `force_single` previews single-host placement. Returns the fit
+    /// decision, discovered members, any rejected members (with reasons), and
+    /// the proposed per-member layer stages. Call this before
+    /// [`ProviderClient::serve_model`](crate::provider::ProviderClient::serve_model)
+    /// to show the operator what serving will do.
+    pub async fn cluster_preview(
+        &self,
+        model_id: &str,
+        force: bool,
+        force_single: bool,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_clusterPreview",
+                serde_json::json!({
+                    "model_id": model_id,
+                    "user_forced": force,
+                    "force_single": force_single,
+                }),
+            )
+            .await
+    }
 }
 
 /// JSON payload for `siwt_build_message`. Mirrors the
