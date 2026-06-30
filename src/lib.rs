@@ -147,6 +147,7 @@ pub mod signer;
 pub mod skill;
 pub mod sla;
 pub mod snapshot;
+pub mod stable_asset;
 pub mod staking;
 pub mod storage;
 pub mod streaming;

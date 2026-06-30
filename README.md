@@ -108,6 +108,7 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `erc7683` | Cross-chain intents origin opener + destination fill registry |
 | `permit2` | Permit2 `SignatureTransfer` (`domain_separator`, `digest`, `verify_and_consume`, `nonce_used`) with optional witness binding for ERC-7683 origin opens |
 | `secure_mint` | Per-token 1:1 reserve-attestation invariant for tokenized RWAs (`set_policy`, `get_policy`, `check`, `apply`, `record_burn`) |
+| `stable_asset` | Issuer-agnostic stable-unit issuance on the Secure-Mint reserve floor (`register`, `get`, `mint`, `redeem`); register needs the `issuer` API-key scope |
 | `hyperlane` | Hyperlane V3 messaging with sovereign Tenzro-validator-set ISM (`list_chains`, `quote_dispatch`, `dispatch`, `get_message`) |
 | `axelar` | Axelar GMP — Cosmos / Move / Stellar / XRPL reach (`call_contract`, `pay_gas`, `get_message`, `list_chains`) |
 | `babylon` | Babylon Bitcoin staking finality-providers + EOTS delegations (`register_finality_provider`, `submit_finality_signature`, `total_stake_for_provider`, `list_delegations`) |

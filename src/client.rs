@@ -698,6 +698,14 @@ impl TenzroClient {
         crate::secure_mint::SecureMintClient::new(self.rpc.clone())
     }
 
+    /// Creates a stable-asset issuance client. Issuer-agnostic stable-unit
+    /// policies layered on the Secure-Mint reserve floor via
+    /// `tenzro_registerStableAsset`, `tenzro_mintStableAsset`,
+    /// `tenzro_redeemStableAsset`, `tenzro_getStableAsset`.
+    pub fn stable_asset(&self) -> crate::stable_asset::StableAssetClient {
+        crate::stable_asset::StableAssetClient::new(self.rpc.clone())
+    }
+
     /// Creates an ERC-7943 (uRWA) client. Read paths
     /// (`tenzro_urwaIsKillSwitched`, `tenzro_urwaGetFrozenTokens`)
     /// are public; mutation paths
