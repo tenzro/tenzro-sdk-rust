@@ -1,7 +1,7 @@
 //! Secure-Mint registry client.
 //!
 //! Enforces a per-token 1:1 reserve-attestation invariant for
-//! tokenized real-world assets (xStocks-class equities, treasuries,
+//! tokenized real-world assets (tokenized-equity-class assets, treasuries,
 //! stablecoins): `circulating + amount ≤ reserve` at every mint, with
 //! `reserve` updated through a `SubmitReserveAttestation` flow gated
 //! on a Proof-of-Reserve feed + attester DID.
