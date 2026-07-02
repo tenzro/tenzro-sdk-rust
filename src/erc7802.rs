@@ -42,13 +42,19 @@ impl Erc7802Client {
     ///
     /// Mints tokens on the local chain in response to a verified
     /// burn on the source chain, following the ERC-7802 standard.
+    /// The node dispatches `payload` through its bridge router for
+    /// quorum verification; the verified message inside is the sole
+    /// authority for recipient and amount. `recipient` and `amount`
+    /// are optional cross-checks against the verified message.
     ///
     /// # Arguments
     ///
     /// * `token` - Token symbol or address
-    /// * `recipient` - Recipient address on the local chain
-    /// * `amount` - Amount to mint as a decimal string
     /// * `source_chain` - Chain where the corresponding burn occurred
+    /// * `adapter` - Bridge router adapter name that verifies the payload (e.g. "wormhole")
+    /// * `payload` - Hex-encoded inbound bridge payload
+    /// * `recipient` - Expected recipient address (cross-check, optional)
+    /// * `amount` - Expected amount as a decimal string (cross-check, optional)
     ///
     /// # Example
     ///
@@ -61,9 +67,11 @@ impl Erc7802Client {
     /// let erc7802 = client.erc7802();
     /// let result = erc7802.crosschain_mint(
     ///     "TNZO",
-    ///     "0xrecipient...",
-    ///     "1000000000000000000",
     ///     "ethereum",
+    ///     "wormhole",
+    ///     "0x0100…",
+    ///     Some("0xrecipient..."),
+    ///     Some("1000000000000000000"),
     /// ).await?;
     /// println!("Minted on tx: {}", result.tx_hash);
     /// # Ok(())
@@ -72,18 +80,22 @@ impl Erc7802Client {
     pub async fn crosschain_mint(
         &self,
         token: &str,
-        recipient: &str,
-        amount: &str,
         source_chain: &str,
+        adapter: &str,
+        payload: &str,
+        recipient: Option<&str>,
+        amount: Option<&str>,
     ) -> SdkResult<MintResult> {
         self.rpc
             .call(
                 "tenzro_erc7802CrosschainMint",
                 serde_json::json!([{
                     "token": token,
+                    "source_chain": source_chain,
+                    "adapter": adapter,
+                    "payload": payload,
                     "recipient": recipient,
                     "amount": amount,
-                    "source_chain": source_chain,
                 }]),
             )
             .await

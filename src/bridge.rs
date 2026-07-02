@@ -10,7 +10,7 @@
 //!   Ethereum (30101), BSC (30102), Avalanche (30106), Polygon (30109), Arbitrum (30110),
 //!   Optimism (30111), zkSync (30165), Base (30184), Solana (30168), Sei (30280),
 //!   Sonic (30332), Berachain (30362), Story (30364), Monad (30390), MegaETH (30398),
-//!   Tron (30420).
+//!   Robinhood Chain (30416), Tron (30420).
 //! - **Chainlink CCIP** — Cross-chain interoperability with `allowOutOfOrderExecution = true`.
 //!   Router addresses: BSC (`0x34B03Cb9086d7D758AC55af71584F81A598759FE`),
 //!   Base (`0x881e3A65B4d4a04dD529061dd0071cf975F58bCD`).

@@ -359,6 +359,193 @@ impl TokenClient {
             )
             .await
     }
+
+    // ─── Treasury multisig withdrawals ───
+    //
+    // Withdrawer/threshold configuration requires the operator admin token
+    // (`TENZRO_ADMIN_TOKEN`). Approval and execution are authorized by the
+    // approver's signature over the domain-separated preimage
+    // `"tenzro/treasury/withdrawal-approval" || withdrawal_id || asset_id || amount_le`
+    // and the configured threshold.
+
+    /// Authorizes a treasury withdrawer address (admin token required).
+    pub async fn treasury_add_withdrawer(&self, address: &str) -> SdkResult<TreasuryConfig> {
+        self.rpc
+            .call(
+                "tenzro_treasuryAddWithdrawer",
+                serde_json::json!([{ "address": address }]),
+            )
+            .await
+    }
+
+    /// Removes an authorized treasury withdrawer address (admin token required).
+    pub async fn treasury_remove_withdrawer(&self, address: &str) -> SdkResult<TreasuryConfig> {
+        self.rpc
+            .call(
+                "tenzro_treasuryRemoveWithdrawer",
+                serde_json::json!([{ "address": address }]),
+            )
+            .await
+    }
+
+    /// Sets the treasury withdrawal approval threshold (admin token required).
+    pub async fn treasury_set_withdrawal_threshold(
+        &self,
+        threshold: u64,
+    ) -> SdkResult<TreasuryConfig> {
+        self.rpc
+            .call(
+                "tenzro_treasurySetWithdrawalThreshold",
+                serde_json::json!([{ "threshold": threshold }]),
+            )
+            .await
+    }
+
+    /// Approves a treasury withdrawal with a signed approval.
+    ///
+    /// `signature` is the hex signature over the withdrawal-approval
+    /// preimage; `key_type` is `"ed25519"` (default) or `"secp256k1"`.
+    /// `amount` is a decimal string in base units.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn treasury_approve_withdrawal(
+        &self,
+        withdrawal_id: &str,
+        asset_id: &str,
+        amount: &str,
+        approver: &str,
+        key_type: &str,
+        public_key: &str,
+        signature: &str,
+    ) -> SdkResult<TreasuryApproval> {
+        self.rpc
+            .call(
+                "tenzro_treasuryApproveWithdrawal",
+                serde_json::json!([{
+                    "withdrawal_id": withdrawal_id,
+                    "asset_id": asset_id,
+                    "amount": amount,
+                    "approver": approver,
+                    "key_type": key_type,
+                    "public_key": public_key,
+                    "signature": signature,
+                }]),
+            )
+            .await
+    }
+
+    /// Executes a treasury withdrawal once the approval threshold is
+    /// reached. The `(withdrawal_id, asset_id, amount)` triple must match
+    /// the approved withdrawal exactly.
+    pub async fn treasury_execute_withdrawal(
+        &self,
+        withdrawal_id: &str,
+        asset_id: &str,
+        amount: &str,
+    ) -> SdkResult<TreasuryExecution> {
+        self.rpc
+            .call(
+                "tenzro_treasuryExecuteWithdrawal",
+                serde_json::json!([{
+                    "withdrawal_id": withdrawal_id,
+                    "asset_id": asset_id,
+                    "amount": amount,
+                }]),
+            )
+            .await
+    }
+
+    /// Gets a pending treasury withdrawal's approval state, or `None`
+    /// when no pending withdrawal matches.
+    pub async fn treasury_get_pending_withdrawal(
+        &self,
+        withdrawal_id: &str,
+    ) -> SdkResult<Option<PendingWithdrawal>> {
+        self.rpc
+            .call(
+                "tenzro_treasuryGetPendingWithdrawal",
+                serde_json::json!([{ "withdrawal_id": withdrawal_id }]),
+            )
+            .await
+    }
+}
+
+/// Treasury withdrawer/threshold configuration returned from the
+/// `treasury_add_withdrawer` / `treasury_remove_withdrawer` /
+/// `treasury_set_withdrawal_threshold` calls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreasuryConfig {
+    /// Authorized withdrawer addresses (0x-prefixed hex)
+    #[serde(default)]
+    pub withdrawers: Vec<String>,
+    /// Approvals required per withdrawal
+    #[serde(default)]
+    pub threshold: u64,
+}
+
+/// Result from `treasury_approve_withdrawal`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreasuryApproval {
+    /// Withdrawal identifier
+    #[serde(default)]
+    pub withdrawal_id: String,
+    /// Asset identifier
+    #[serde(default)]
+    pub asset_id: String,
+    /// Amount in base units (decimal string)
+    #[serde(default)]
+    pub amount: String,
+    /// Distinct approvals recorded so far
+    #[serde(default)]
+    pub approvals: u64,
+    /// Approvals required
+    #[serde(default)]
+    pub threshold: u64,
+    /// Whether the threshold is now reached
+    #[serde(default)]
+    pub threshold_reached: bool,
+}
+
+/// Result from `treasury_execute_withdrawal`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreasuryExecution {
+    /// Withdrawal identifier
+    #[serde(default)]
+    pub withdrawal_id: String,
+    /// Asset identifier
+    #[serde(default)]
+    pub asset_id: String,
+    /// Amount in base units (decimal string)
+    #[serde(default)]
+    pub amount: String,
+    /// Whether the withdrawal executed
+    #[serde(default)]
+    pub executed: bool,
+    /// Treasury balance for the asset after execution (decimal string)
+    #[serde(default)]
+    pub remaining_balance: String,
+}
+
+/// Pending withdrawal state from `treasury_get_pending_withdrawal`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingWithdrawal {
+    /// Withdrawal identifier
+    #[serde(default)]
+    pub withdrawal_id: String,
+    /// Asset identifier
+    #[serde(default)]
+    pub asset_id: String,
+    /// Amount in base units (decimal string)
+    #[serde(default)]
+    pub amount: String,
+    /// Approver addresses recorded so far (0x-prefixed hex)
+    #[serde(default)]
+    pub approvers: Vec<String>,
+    /// Distinct approvals recorded so far
+    #[serde(default)]
+    pub approvals: u64,
+    /// Approvals required
+    #[serde(default)]
+    pub threshold: u64,
 }
 
 /// Token information returned from `create_token` and `get_token_info`

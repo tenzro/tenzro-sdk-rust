@@ -294,7 +294,8 @@ pub use tee::{
     AttestationResult, SealedData, TeeClient, TeeInfo, TeeProvider, TeeVerifyResult, UnsealedData,
 };
 pub use token::{
-    TokenBalance, TokenClient, TokenInfo, TokenList, TokenListEntry, TransferResult, WrapResult,
+    PendingWithdrawal, TokenBalance, TokenClient, TokenInfo, TokenList, TokenListEntry,
+    TransferResult, TreasuryApproval, TreasuryConfig, TreasuryExecution, WrapResult,
     WTNZO_EVM_ADDRESS,
 };
 pub use tool::ToolClient;
