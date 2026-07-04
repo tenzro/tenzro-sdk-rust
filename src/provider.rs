@@ -828,6 +828,11 @@ pub struct ModelEndpoint {
     /// Location (local or network)
     #[serde(default)]
     pub location: String,
+    /// iroh EndpointId of the serving node (hex-encoded). Populated for
+    /// network-discovered endpoints so callers can see the NAT-agnostic
+    /// address a remote model is reached at. Empty for local services.
+    #[serde(default)]
+    pub iroh_endpoint_id: String,
     /// Provider name
     #[serde(default)]
     pub provider_name: String,

@@ -336,6 +336,67 @@ impl SettlementClient {
             .await
     }
 
+    /// Pre-fund the streaming settlement path: lock `amount` (wei) of the
+    /// renter's on-chain TNZO into the prepaid ledger. Storage/compute
+    /// runtimes then stream per epoch out of this balance. Returns
+    /// `{renter, asset, deposited, balance}`.
+    pub async fn prepaid_deposit(
+        &self,
+        renter: impl Into<String>,
+        amount: u128,
+        asset: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_prepaidDeposit",
+                serde_json::json!({
+                    "renter": renter.into(),
+                    "amount": amount.to_string(),
+                    "asset": asset.into(),
+                }),
+            )
+            .await
+    }
+
+    /// Withdraw up to `amount` (wei) of the renter's unspent prepaid balance
+    /// back to their on-chain account. Returns `{renter, asset, withdrawn,
+    /// balance}` — `withdrawn` is capped at the available balance.
+    pub async fn prepaid_withdraw(
+        &self,
+        renter: impl Into<String>,
+        amount: u128,
+        asset: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_prepaidWithdraw",
+                serde_json::json!({
+                    "renter": renter.into(),
+                    "amount": amount.to_string(),
+                    "asset": asset.into(),
+                }),
+            )
+            .await
+    }
+
+    /// Read the renter's current prepaid balance. Returns
+    /// `{renter, asset, balance}` in wei.
+    pub async fn prepaid_balance(
+        &self,
+        renter: impl Into<String>,
+        asset: impl Into<String>,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_prepaidBalance",
+                serde_json::json!({
+                    "renter": renter.into(),
+                    "asset": asset.into(),
+                }),
+            )
+            .await
+    }
+
     /// Fetch a single channel dispute by id. Returns the full
     /// `ChannelDispute` record (challenger, evidence blobs, status,
     /// opened_at / timeout_at / resolved_at, resolution). Returns

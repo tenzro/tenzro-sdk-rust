@@ -300,8 +300,8 @@ pub use token::{
 };
 pub use tool::ToolClient;
 pub use training::{
-    ListTrainingRunsResult, SealedDatasetManifest, SealedShardEnvelope, TrainingInspectionClient,
-    TrainingReceipt, TrainingRun, TrainingRunStatus,
+    ListTrainingRunsResult, SealedDatasetManifest, SealedShardEnvelope, TrainerDaemonStatus,
+    TrainingInspectionClient, TrainingReceipt, TrainingRun, TrainingRunStatus,
 };
 pub use validator::{
     ListValidatorsResult, ValidatorClient, ValidatorRegistryEntry, ValidatorStatus,

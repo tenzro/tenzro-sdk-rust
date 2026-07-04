@@ -139,6 +139,22 @@ pub struct ListTrainingRunsResult {
     pub runs: Vec<TrainingRun>,
 }
 
+/// Result of `tenzro_getTrainerDaemonStatus`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainerDaemonStatus {
+    /// `true` when the node runs the trainer auto-provisioning daemon.
+    pub running: bool,
+    /// DID the daemon enrolls trainers under. Absent when not running.
+    #[serde(default)]
+    pub trainer_did: Option<String>,
+    /// Number of inner-loop trainer processes currently live.
+    #[serde(default)]
+    pub live_trainers: u64,
+    /// Concurrency ceiling from the `[training]` config. Absent when not running.
+    #[serde(default)]
+    pub max_concurrent_trainers: Option<u64>,
+}
+
 /// Read-only Tenzro Train inspection client.
 #[derive(Clone)]
 pub struct TrainingInspectionClient {
@@ -194,6 +210,15 @@ impl TrainingInspectionClient {
                 "tenzro_training_getSealedManifest",
                 serde_json::json!({ "task_id": task_id }),
             )
+            .await
+    }
+
+    /// Report the trainer auto-provisioning daemon status. When the node
+    /// has no `[training]` section (or `enabled = false`), `running` is
+    /// `false` and the DID / concurrency fields are absent.
+    pub async fn daemon_status(&self) -> SdkResult<TrainerDaemonStatus> {
+        self.rpc
+            .call("tenzro_getTrainerDaemonStatus", serde_json::json!({}))
             .await
     }
 }
@@ -311,6 +336,20 @@ impl TrainingClient {
             .call(
                 "tenzro_training_installSealedManifest",
                 serde_json::json!({ "task_id": task_id, "manifest": manifest }),
+            )
+            .await
+    }
+
+    /// Ask the syncer whether the current round should finalize, keep waiting,
+    /// or advance on a no-endorsement certificate. The decision is driven by
+    /// the DiLoCo grace window: `wait` reports the remaining milliseconds,
+    /// `finalize` and `no_quorum` report the round number. Returns the raw
+    /// `{ decision, .. }` object.
+    pub async fn decide_round(&self, task_id: &str) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_training_decideRound",
+                serde_json::json!({ "task_id": task_id }),
             )
             .await
     }

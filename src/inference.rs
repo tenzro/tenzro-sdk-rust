@@ -76,6 +76,32 @@ impl InferenceClient {
 
         Ok(total_cost)
     }
+
+    /// Reads the inference router's live metrics snapshot: total requests
+    /// routed, hedges dispatched, hedges won, and requests abandoned on the
+    /// whole-request deadline. Returns the raw metrics object.
+    pub async fn router_metrics(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_getRouterMetrics", serde_json::json!({}))
+            .await
+    }
+
+    /// Look up the cached provenance manifest for generated content by its
+    /// 32-byte hex `content_hash` (with or without `0x` prefix). This is the
+    /// machine-readable synthetic-content marker per EU AI Act Art. 50(2).
+    /// The node returns JSON-RPC `-32004` when no manifest is cached for the
+    /// hash — surfaces as `SdkError::RpcError`.
+    pub async fn get_provenance(
+        &self,
+        content_hash: &str,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_getProvenance",
+                serde_json::json!({ "content_hash": content_hash }),
+            )
+            .await
+    }
 }
 
 /// Inference result
