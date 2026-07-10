@@ -511,6 +511,13 @@ impl TenzroClient {
         crate::resources::ResourcesClient::new(self.rpc.clone())
     }
 
+    /// Creates a managed-database client for the engine catalog, database
+    /// create/rescale/drop, partition placement, connection issuance, and
+    /// engine-dialect queries (Postgres / Qdrant / Valkey / Lance / Tantivy).
+    pub fn database(&self) -> crate::database::DatabaseClient {
+        crate::database::DatabaseClient::new(self.rpc.clone())
+    }
+
     /// Creates an MCP plugin host client. Operator-only — used to
     /// populate the sealed credential vault that the plugin host
     /// references when dispatching tenant invocations to upstream MCPs.

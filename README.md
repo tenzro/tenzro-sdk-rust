@@ -71,7 +71,7 @@ peer-reported network tips (gossiped on `tenzro/status`); pair it with
 | `wallet` | Create wallets, check balances, send transactions |
 | `identity` | TDIP DIDs, credentials, usernames, delegation |
 | `agent` | Register agents, spawn, swarms, messaging |
-| `inference` | Model discovery, chat, and multi-modal inference (forecast, vision embed/similarity, text embedding, segmentation, detection, audio ASR, video embed) — modality-aware routing via `tenzro_forecast`, `tenzro_visionEmbed`, `tenzro_textEmbed`, `tenzro_segment`, `tenzro_detect`, `tenzro_transcribe`, `tenzro_videoEmbed`. Streaming: `chat_stream` (token stream), `chat_stream_channel` (per-token billing on a micropayment channel). `get_provenance(content_hash)` resolves the cached synthetic-content manifest (EU AI Act Art. 50(2)) for generated output |
+| `inference` | Model discovery, chat, and multi-modal inference (forecast, vision embed/similarity, text embedding, segmentation, detection, audio ASR, video embed) — modality-aware routing via `tenzro_forecast`, `tenzro_visionEmbed`, `tenzro_textEmbed`, `tenzro_segment`, `tenzro_detect`, `tenzro_transcribe`, `tenzro_videoEmbed`. Intent routing: `route_intent(&params)` (resolve an intent to a model without naming one), `chat_by_intent(&params, messages)` (resolve and run in one call), `orchestrate(&request)` (plan and run an ordered set of models, skills, tools, and agent/swarm delegation for a goal). Streaming: `chat_stream` (token stream), `chat_stream_channel` (per-token billing on a micropayment channel). `get_provenance(content_hash)` resolves the cached synthetic-content manifest (EU AI Act Art. 50(2)) for generated output |
 | `token` | Create tokens, cross-VM transfers, registry |
 | `nft` | Collections, minting, transfers, cross-VM pointers |
 | `bridge` | LayerZero, CCIP, deBridge, LI.FI bridging |
@@ -281,6 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 cargo run --example basic_usage
 cargo run --example wallet_operations
 cargo run --example ai_inference
+cargo run --example intent_orchestration
 cargo run --example agents
 cargo run --example app_developer
 cargo run --example task_marketplace

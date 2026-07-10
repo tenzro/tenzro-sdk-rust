@@ -32,6 +32,10 @@ impl StorageClient {
     /// and publishes the shards over the transport. Returns the stored size and
     /// shard layout.
     ///
+    /// `owner_did` gates who may retrieve the object. When `Some`, the object is
+    /// owner-only to that DID (the same access model the database tier uses);
+    /// when `None`, it defaults to owner-only for the `owner` address.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -42,7 +46,7 @@ impl StorageClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let storage = client.storage();
     /// let stored = storage
-    ///     .store_object("photo-1", "0xowner", b"...bytes...", 4, 2)
+    ///     .store_object("photo-1", "0xowner", b"...bytes...", 4, 2, Some("did:tenzro:human:alice"))
     ///     .await?;
     /// println!("stored {} bytes", stored.size_bytes);
     /// # Ok(())
@@ -55,20 +59,22 @@ impl StorageClient {
         data: &[u8],
         data_shards: u32,
         parity_shards: u32,
+        owner_did: Option<&str>,
     ) -> SdkResult<StoredObject> {
         let data_b64 = base64::engine::general_purpose::STANDARD.encode(data);
+        let mut params = json!({
+            "object_id": object_id,
+            "owner": owner,
+            "data": data_b64,
+            "data_shards": data_shards,
+            "parity_shards": parity_shards,
+        });
+        if let Some(did) = owner_did {
+            params["owner_did"] = json!(did);
+        }
         let result = self
             .rpc
-            .call(
-                "tenzro_storageStoreObject",
-                json!([{
-                    "object_id": object_id,
-                    "owner": owner,
-                    "data": data_b64,
-                    "data_shards": data_shards,
-                    "parity_shards": parity_shards,
-                }]),
-            )
+            .call("tenzro_storageStoreObject", json!([params]))
             .await?;
         serde_json::from_value(result)
             .map_err(|e| SdkError::RpcError(format!("Failed to parse stored object: {}", e)))

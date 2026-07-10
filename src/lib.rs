@@ -158,6 +158,7 @@ pub mod token;
 pub mod tool;
 pub mod training;
 pub mod knowledge;
+pub mod database;
 pub mod mcp_host;
 pub mod resources;
 pub mod canton_agent;
@@ -249,7 +250,10 @@ pub use erc8004::{
 pub use events::{Event, EventClient, Subscription, WebhookDeletion, WebhookList, WebhookRegistration};
 pub use governance::{GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower};
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};
-pub use inference::InferenceClient;
+pub use inference::{
+    InferenceClient, IntentParams, OrchestrateRequest, OrchestrationOutcome, OrchestrationStep,
+    RouteDecision,
+};
 pub use iroh::{
     IrohAlpnEntry, IrohAlpnList, IrohClient, IrohEndpointId, IrohInfo, IrohPublishResult,
 };
