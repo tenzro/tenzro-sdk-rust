@@ -66,7 +66,7 @@ fn webauthn_prehash(authenticator_data: &[u8], client_data_json: &[u8]) -> [u8; 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("TENZRO_RPC_URL")
-        .unwrap_or_else(|_| "https://rpc.tenzro.network".to_string());
+        .unwrap_or_else(|_| "https://rpc.tenzro.xyz".to_string());
     println!("===== passkey SIGN smoke against {} =====", endpoint);
 
     let mut cfg = SdkConfig::testnet();
@@ -114,8 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4-7. Build the WebAuthn assertion exactly the way an authenticator
     // would, then sign it.
-    let rp_id = "wallet.tenzro.network";
-    let origin = "https://wallet.tenzro.network";
+    let rp_id = "wallet.tenzro.xyz";
+    let origin = "https://wallet.tenzro.xyz";
     let challenge_b64 = URL_SAFE_NO_PAD.encode(&op_hash);
     println!("  challenge_b64url:      {}", challenge_b64);
 

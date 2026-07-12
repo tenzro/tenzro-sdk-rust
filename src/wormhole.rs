@@ -17,7 +17,7 @@ use std::sync::Arc;
 /// # use tenzro_sdk::TenzroClient;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+/// let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 /// let wormhole = client.wormhole();
 /// let id = wormhole.chain_id("ethereum").await?;
 /// assert_eq!(id.wormhole_chain_id, 2);

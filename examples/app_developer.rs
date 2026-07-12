@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let master_key = std::env::var("TENZRO_MASTER_KEY")
         .unwrap_or_else(|_| "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into());
 
-    let app = AppClient::new("https://rpc.tenzro.network", &master_key).await?;
+    let app = AppClient::new("https://rpc.tenzro.xyz", &master_key).await?;
     println!("   Master wallet: {}", app.master_wallet().address);
 
     let balance = app.get_master_balance().await?;

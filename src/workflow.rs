@@ -11,7 +11,7 @@
 //! # use tenzro_sdk::TenzroClient;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//! let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //! let workflow = client.workflow();
 //!
 //! // Open a workflow with a set of declared steps.

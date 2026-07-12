@@ -170,7 +170,7 @@ fn build_client_data_json(challenge_b64url: &str, origin: &str) -> Vec<u8> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("TENZRO_RPC_URL")
-        .unwrap_or_else(|_| "https://rpc.tenzro.network".to_string());
+        .unwrap_or_else(|_| "https://rpc.tenzro.xyz".to_string());
     println!("===== ERC-4337 v0.8 UserOp + passkey smoke =====");
     println!("endpoint: {}", endpoint);
 
@@ -225,8 +225,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ── 3. Build hybrid signature ──
     println!("\n[3/4] sign op hash (passkey + ML-DSA-65)");
-    let rp_id = "wallet.tenzro.network";
-    let origin = "https://wallet.tenzro.network";
+    let rp_id = "wallet.tenzro.xyz";
+    let origin = "https://wallet.tenzro.xyz";
     let challenge = URL_SAFE_NO_PAD.encode(op_hash);
     let auth_data = build_authenticator_data(rp_id, 1);
     let client_data = build_client_data_json(&challenge, origin);
@@ -293,7 +293,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let url = std::env::var("TENZRO_RPC_URL")
-        .unwrap_or_else(|_| "https://rpc.tenzro.network".to_string());
+        .unwrap_or_else(|_| "https://rpc.tenzro.xyz".to_string());
     let http = reqwest::Client::new();
     let resp: serde_json::Value = http
         .post(&url)

@@ -17,7 +17,7 @@
 //! # use tenzro_sdk::TenzroClient;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//! let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //! let actives = client.validators().list_active().await?;
 //! println!("{} active validators", actives.count);
 //! for v in actives.validators {

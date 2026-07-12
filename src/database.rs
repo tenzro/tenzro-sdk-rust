@@ -18,7 +18,7 @@
 //! Tantivy, a `{command: [...]}` for Valkey. The node dispatches it verbatim to
 //! the backend for the database's engine.
 //!
-//! [access policy]: https://docs.tenzro.network
+//! [access policy]: https://docs.tenzro.xyz
 
 use crate::error::{SdkError, SdkResult};
 use crate::rpc::RpcClient;

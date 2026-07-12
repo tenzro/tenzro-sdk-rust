@@ -23,7 +23,7 @@
 //!
 //! Required environment for a full run against a live node:
 //!
-//!   TENZRO_RPC_ENDPOINT    — e.g. https://rpc.tenzro.network
+//!   TENZRO_RPC_ENDPOINT    — e.g. https://rpc.tenzro.xyz
 //!   TENZRO_ADMIN_TOKEN     — operator's admin token for the target node
 //!   TENZRO_SUBJECT_DID     — subject identifier to bind the key to
 //!                            (e.g. did:tenzro:human:<uuid>)
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("To run end-to-end against a live node, export:");
         println!("  TENZRO_ADMIN_TOKEN=<operator token for the target node>");
         println!("  TENZRO_SUBJECT_DID=did:tenzro:human:<uuid>");
-        println!("  TENZRO_RPC_ENDPOINT=https://rpc.tenzro.network");
+        println!("  TENZRO_RPC_ENDPOINT=https://rpc.tenzro.xyz");
         println!("\nThen re-run this example.");
         return Ok(());
     }

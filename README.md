@@ -25,7 +25,7 @@ use tenzro_sdk::TenzroClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+    let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 
     // Create wallet
     let wallet = client.wallet().create_wallet().await?;
@@ -143,7 +143,7 @@ use tenzro_sdk::TenzroClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+    let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
     let auth = client.auth();
 
     // Onboard a new human — returns identity, MPC wallet, and access token
@@ -260,7 +260,7 @@ use tenzro_sdk::AppClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = AppClient::new(
-        "https://rpc.tenzro.network",
+        "https://rpc.tenzro.xyz",
         "master-private-key",
     ).await?;
 
@@ -307,10 +307,10 @@ See the [examples/](examples/) directory and [Tenzro Cookbook](https://github.co
 
 | Endpoint | URL |
 |----------|-----|
-| JSON-RPC | `https://rpc.tenzro.network` |
-| Web API | `https://api.tenzro.network` |
-| MCP Server | `https://mcp.tenzro.network/mcp` |
-| A2A Server | `https://a2a.tenzro.network` |
+| JSON-RPC | `https://rpc.tenzro.xyz` |
+| Web API | `https://api.tenzro.xyz` |
+| MCP Server | `https://mcp.tenzro.xyz/mcp` |
+| A2A Server | `https://a2a.tenzro.xyz` |
 
 ## Documentation
 

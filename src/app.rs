@@ -34,7 +34,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let app = AppClient::new("https://rpc.tenzro.network", "your-master-wallet-private-key").await?;
+//!     let app = AppClient::new("https://rpc.tenzro.xyz", "your-master-wallet-private-key").await?;
 //!
 //!     // Create a user wallet (funded from master)
 //!     let user = app.create_user_wallet("alice", 100_000_000_000_000_000).await?; // 0.1 TNZO
@@ -205,7 +205,7 @@ impl AppState {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let app = AppClient::new("https://rpc.tenzro.network", "your-master-wallet-private-key").await?;
+///     let app = AppClient::new("https://rpc.tenzro.xyz", "your-master-wallet-private-key").await?;
 ///
 ///     // Create a user wallet (funded from master)
 ///     let user = app.create_user_wallet("alice", 100_000_000_000_000_000).await?;

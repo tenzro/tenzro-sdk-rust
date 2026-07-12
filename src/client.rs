@@ -35,7 +35,7 @@ use std::time::Duration;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+///     let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 ///
 ///     let block_number = client.block_number().await?;
 ///     println!("Current block: {}", block_number);
@@ -61,7 +61,7 @@ impl TenzroClient {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+    ///     let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
     ///     println!("Connected!");
     ///     Ok(())
     /// }

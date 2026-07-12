@@ -25,7 +25,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Connect to testnet
-//!     let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//!     let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //!
 //!     // Create wallet
 //!     let wallet = client.wallet().create_wallet().await?;

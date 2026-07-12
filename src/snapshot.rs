@@ -24,7 +24,7 @@
 //! # use tenzro_sdk::TenzroClient;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//! let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //! let snap = client.snapshot();
 //!
 //! let summaries = snap.list_snapshots().await?;

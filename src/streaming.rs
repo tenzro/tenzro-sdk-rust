@@ -81,8 +81,8 @@ impl StreamingClient {
                     .to_string(),
             )
         })?;
-        let api_base = if endpoint.contains("rpc.tenzro.network") {
-            endpoint.replace("rpc.tenzro.network", "api.tenzro.network")
+        let api_base = if endpoint.contains("rpc.tenzro.xyz") {
+            endpoint.replace("rpc.tenzro.xyz", "api.tenzro.xyz")
         } else if endpoint.contains("localhost:8545") || endpoint.contains("127.0.0.1:8545") {
             endpoint.replace("8545", "8080")
         } else {
@@ -172,8 +172,8 @@ impl StreamingClient {
                 )
             })?
             .to_string();
-        let api_base = if endpoint.contains("rpc.tenzro.network") {
-            endpoint.replace("rpc.tenzro.network", "api.tenzro.network")
+        let api_base = if endpoint.contains("rpc.tenzro.xyz") {
+            endpoint.replace("rpc.tenzro.xyz", "api.tenzro.xyz")
         } else if endpoint.contains("localhost:8545") || endpoint.contains("127.0.0.1:8545") {
             endpoint.replace("8545", "8080")
         } else {

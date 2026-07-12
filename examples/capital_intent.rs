@@ -14,7 +14,7 @@ use tenzro_sdk::TenzroClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+    let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
     let capital = client.capital();
 
     // 1. Build a signed CapitalIntent payload. Real callers sign over the

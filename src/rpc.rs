@@ -319,14 +319,14 @@ impl RpcClient {
 }
 
 /// Sibling-subdomain mapping for the Web API base URL. The production
-/// deploy serves `rpc.tenzro.network` and `api.tenzro.network` from the
+/// deploy serves `rpc.tenzro.xyz` and `api.tenzro.xyz` from the
 /// same node — `:8545` is JSON-RPC, `:8080` is the Web API surface.
 fn web_api_url(endpoint: &str, path: &str) -> String {
     let base = endpoint.trim_end_matches('/');
-    if base.contains("rpc.tenzro.network") {
+    if base.contains("rpc.tenzro.xyz") {
         format!(
             "{}{}",
-            base.replace("rpc.tenzro.network", "api.tenzro.network"),
+            base.replace("rpc.tenzro.xyz", "api.tenzro.xyz"),
             path
         )
     } else if base.contains("localhost:8545") || base.contains("127.0.0.1:8545") {

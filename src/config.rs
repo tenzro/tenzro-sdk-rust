@@ -14,7 +14,7 @@ use crate::error::{SdkError, SdkResult};
 /// use tenzro_sdk::config::SdkConfig;
 ///
 /// let config = SdkConfig::builder()
-///     .endpoint("https://rpc.tenzro.network")
+///     .endpoint("https://rpc.tenzro.xyz")
 ///     .timeout(10000)
 ///     .max_retries(5)
 ///     .build()
@@ -43,7 +43,7 @@ impl SdkConfig {
     /// use tenzro_sdk::config::SdkConfig;
     ///
     /// let config = SdkConfig::builder()
-    ///     .endpoint("https://rpc.tenzro.network")
+    ///     .endpoint("https://rpc.tenzro.xyz")
     ///     .build()
     ///     .unwrap();
     /// ```
@@ -64,7 +64,7 @@ impl SdkConfig {
     /// ```
     pub fn mainnet() -> Self {
         Self {
-            endpoint: "https://rpc.tenzro.network".to_string(),
+            endpoint: "https://rpc.tenzro.xyz".to_string(),
             timeout_ms: 30000,
             max_retries: 3,
             api_key: None,
@@ -74,7 +74,7 @@ impl SdkConfig {
 
     /// Creates a testnet configuration
     ///
-    /// Connects to the live Tenzro testnet at `rpc.tenzro.network`.
+    /// Connects to the live Tenzro testnet at `rpc.tenzro.xyz`.
     ///
     /// # Example
     ///
@@ -85,7 +85,7 @@ impl SdkConfig {
     /// ```
     pub fn testnet() -> Self {
         Self {
-            endpoint: "https://rpc.tenzro.network".to_string(),
+            endpoint: "https://rpc.tenzro.xyz".to_string(),
             timeout_ms: 30000,
             max_retries: 3,
             api_key: None,

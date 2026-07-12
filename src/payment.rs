@@ -92,7 +92,7 @@ impl PaymentClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let payment = client.payment();
     /// let receipt = payment.pay_mpp(
-    ///     "https://api.tenzro.network/inference",
+    ///     "https://api.tenzro.xyz/inference",
     ///     Some("did:tenzro:human:abc123"),
     /// ).await?;
     /// println!("Paid: {} {}", receipt.amount, receipt.asset);
@@ -127,7 +127,7 @@ impl PaymentClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let payment = client.payment();
     /// let receipt = payment.pay_x402(
-    ///     "https://api.tenzro.network/inference",
+    ///     "https://api.tenzro.xyz/inference",
     ///     Some("did:tenzro:human:abc123"),
     /// ).await?;
     /// println!("Receipt ID: {}", receipt.receipt_id);
@@ -236,7 +236,7 @@ impl PaymentClient {
     /// let payment = client.payment();
     /// let receipt = payment.pay_ap2(
     ///     "did:tenzro:machine:agent-1",
-    ///     "https://api.tenzro.network/inference",
+    ///     "https://api.tenzro.xyz/inference",
     ///     100_000,
     /// ).await?;
     /// println!("AP2 receipt: {}", receipt.receipt_id);

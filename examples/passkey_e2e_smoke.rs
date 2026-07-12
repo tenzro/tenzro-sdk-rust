@@ -48,7 +48,7 @@ fn random_credential_id() -> Vec<u8> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = std::env::var("TENZRO_RPC_URL")
-        .unwrap_or_else(|_| "https://rpc.tenzro.network".to_string());
+        .unwrap_or_else(|_| "https://rpc.tenzro.xyz".to_string());
     println!("===== passkey E2E smoke against {} =====", endpoint);
 
     let mut cfg = SdkConfig::testnet();

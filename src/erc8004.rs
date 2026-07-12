@@ -27,7 +27,7 @@ use std::sync::Arc;
 /// # use tenzro_sdk::TenzroClient;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+/// let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 /// let erc8004 = client.erc8004();
 ///
 /// // Derive a deterministic agent id from a Tenzro DID.

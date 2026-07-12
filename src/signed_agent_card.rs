@@ -2,7 +2,7 @@
 //!
 //! Producers of agent cards hash + JWS-sign the canonical hash; relying
 //! parties recompute the hash and verify the signature against the
-//! domain owner's published key (typically `did:web:tenzro.network`).
+//! domain owner's published key (typically `did:web:tenzro.xyz`).
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;

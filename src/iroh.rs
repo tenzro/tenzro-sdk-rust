@@ -13,7 +13,7 @@
 //! # use tenzro_sdk::TenzroClient;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//! let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //! let iroh = client.iroh();
 //!
 //! let info = iroh.get_info().await?;

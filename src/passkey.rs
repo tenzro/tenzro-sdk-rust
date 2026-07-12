@@ -6,7 +6,7 @@
 //! use tenzro_sdk::passkey::{PasskeyWallet, PasskeyConfig};
 //!
 //! let wallet = PasskeyWallet::create(
-//!     PasskeyConfig::production("keys.tenzro.network"),
+//!     PasskeyConfig::production("keys.tenzro.xyz"),
 //!     authenticator,
 //! ).await?;
 //! let sig = wallet.sign_user_op(user_op).await?;
@@ -82,7 +82,7 @@ pub struct PasskeyCredential {
 #[derive(Debug, Clone)]
 pub struct PasskeyConfig {
     /// Relying-party ID. MUST be a registrable domain (e.g.
-    /// `keys.tenzro.network`); MUST NOT include scheme or path.
+    /// `keys.tenzro.xyz`); MUST NOT include scheme or path.
     pub rp_id: String,
     /// Human-readable RP name shown in the OS prompt
     /// ("Tenzro Network").
@@ -98,7 +98,7 @@ pub struct PasskeyConfig {
 }
 
 impl PasskeyConfig {
-    /// Production preset: `keys.tenzro.network` with strict UV and
+    /// Production preset: `keys.tenzro.xyz` with strict UV and
     /// platform attachment.
     pub fn production(rp_id: impl Into<String>) -> Self {
         Self {
@@ -590,7 +590,7 @@ mod tests {
     #[tokio::test]
     async fn create_with_production_config_refuses_software_authenticator() {
         let auth = Arc::new(SoftwareP256Authenticator::new());
-        let cfg = PasskeyConfig::production("keys.tenzro.network");
+        let cfg = PasskeyConfig::production("keys.tenzro.xyz");
         let err = PasskeyWallet::create(cfg, auth).await.unwrap_err();
         match err {
             SdkError::WalletError(msg) => assert!(msg.contains("no platform authenticator")),
@@ -601,7 +601,7 @@ mod tests {
     #[tokio::test]
     async fn create_with_development_config_accepts_software_authenticator() {
         let auth = Arc::new(SoftwareP256Authenticator::new());
-        let cfg = PasskeyConfig::development("keys.tenzro.network");
+        let cfg = PasskeyConfig::development("keys.tenzro.xyz");
         let wallet = PasskeyWallet::create(cfg, auth).await.expect("create ok");
         assert_eq!(wallet.credential().public_key.len(), 64);
         assert!(!wallet.credential().credential_id.is_empty());
@@ -610,7 +610,7 @@ mod tests {
     #[tokio::test]
     async fn sign_user_op_fails_until_validator_module_bound() {
         let auth = Arc::new(SoftwareP256Authenticator::new());
-        let cfg = PasskeyConfig::development("keys.tenzro.network");
+        let cfg = PasskeyConfig::development("keys.tenzro.xyz");
         let wallet = PasskeyWallet::create(cfg, auth).await.unwrap();
         let op = PackedUserOperation {
             op_hash: [0x42; 32],
@@ -626,7 +626,7 @@ mod tests {
     #[tokio::test]
     async fn full_round_trip_after_binding() {
         let auth = Arc::new(SoftwareP256Authenticator::new());
-        let cfg = PasskeyConfig::development("keys.tenzro.network");
+        let cfg = PasskeyConfig::development("keys.tenzro.xyz");
         let mut wallet = PasskeyWallet::create(cfg, auth).await.unwrap();
         wallet.bind_validator_module(Address::zero());
         let op = PackedUserOperation {
@@ -643,7 +643,7 @@ mod tests {
     #[tokio::test]
     async fn cross_device_link_surface_exists() {
         let auth = Arc::new(SoftwareP256Authenticator::new());
-        let cfg = PasskeyConfig::development("keys.tenzro.network");
+        let cfg = PasskeyConfig::development("keys.tenzro.xyz");
         let wallet = PasskeyWallet::create(cfg, auth).await.unwrap();
         // Reference impl returns BackendUnavailable; host-specific
         // impls (Tauri / browser) return a real QR. The point of

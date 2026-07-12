@@ -17,7 +17,7 @@
 //! # use tenzro_sdk::TenzroClient;
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let client = TenzroClient::new("https://rpc.tenzro.network").await?;
+//! let client = TenzroClient::new("https://rpc.tenzro.xyz").await?;
 //! let runs = client.training_inspection().list_runs().await?;
 //! for run in runs.runs {
 //!     println!("{}: round={} status={:?}", run.task_id, run.current_round, run.status);
