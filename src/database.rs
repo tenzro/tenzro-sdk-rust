@@ -66,7 +66,9 @@ impl DatabaseClient {
     ///
     /// Pass `engine_config` for per-engine tuning (opaque to the catalog; the
     /// driver interprets it) and `confidential` for network-tier
-    /// encryption-at-rest.
+    /// encryption-at-rest. `replication` is the `(min, max)` holders-per-partition
+    /// policy — writes below `min` fail, repair never grows past `max`; when
+    /// `None` the node default of `(2, 4)` applies.
     ///
     /// # Example
     ///
@@ -83,7 +85,7 @@ impl DatabaseClient {
     ///     "did:tenzro:human:alice",
     ///     "lan_cluster",
     ///     3,
-    ///     2,
+    ///     Some((2, 4)),
     ///     Some(json!({ "vector_size": 1536 })),
     /// ).await?;
     /// println!("{} partitions", created.partitions.len());
@@ -98,7 +100,7 @@ impl DatabaseClient {
         owner_did: &str,
         placement: &str,
         partitions: usize,
-        replicas: usize,
+        replication: Option<(u8, u8)>,
         engine_config: Option<Value>,
     ) -> SdkResult<CreatedDatabase> {
         let mut params = json!({
@@ -107,8 +109,13 @@ impl DatabaseClient {
             "owner_did": owner_did,
             "placement": placement,
             "partitions": partitions,
-            "replicas": replicas,
         });
+        if let Some((min, max)) = replication {
+            params["replication"] = json!({
+                "min_replication": min,
+                "max_replication": max,
+            });
+        }
         if let Some(cfg) = engine_config {
             params["engine_config"] = cfg;
         }
@@ -188,6 +195,8 @@ impl DatabaseClient {
     /// reads the read action) before any engine is touched. `body` is the
     /// engine dialect; `write` gates the query against the admin action;
     /// `capability` is an AAP token when the caller is not the owner.
+    /// `consistency` is the write acknowledgement level — `"quorum"` (default)
+    /// or `"all"`; ignored on the read path.
     ///
     /// When this node holds the target partition the result carries
     /// `served_here=true` and the engine `result`; otherwise it carries the
@@ -209,11 +218,13 @@ impl DatabaseClient {
     ///     0,
     ///     false,
     ///     None,
+    ///     None,
     /// ).await?;
     /// println!("{res}");
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub async fn query(
         &self,
         database_id: &str,
@@ -222,6 +233,7 @@ impl DatabaseClient {
         partition_index: usize,
         write: bool,
         capability: Option<&str>,
+        consistency: Option<&str>,
     ) -> SdkResult<Value> {
         let mut params = json!({
             "database_id": database_id,
@@ -232,6 +244,9 @@ impl DatabaseClient {
         });
         if let Some(cap) = capability {
             params["capability"] = json!(cap);
+        }
+        if let Some(c) = consistency {
+            params["consistency"] = json!(c);
         }
         self.rpc.call("tenzro_databaseQuery", json!([params])).await
     }
@@ -261,15 +276,16 @@ impl DatabaseClient {
 
     /// Grows or shrinks a database along the local → LAN-cluster → network
     /// continuum in place. Administrative — gated on the write action.
-    /// `partitions`/`replicas` default to the database's current counts when
-    /// omitted.
+    /// `partitions`/`replication` default to the database's current values when
+    /// omitted; `replication` is the `(min, max)` holders-per-partition policy.
+    #[allow(clippy::too_many_arguments)]
     pub async fn rescale(
         &self,
         database_id: &str,
         caller_did: &str,
         placement: &str,
         partitions: Option<usize>,
-        replicas: Option<usize>,
+        replication: Option<(u8, u8)>,
         capability: Option<&str>,
     ) -> SdkResult<Value> {
         let mut params = json!({
@@ -280,8 +296,11 @@ impl DatabaseClient {
         if let Some(p) = partitions {
             params["partitions"] = json!(p);
         }
-        if let Some(r) = replicas {
-            params["replicas"] = json!(r);
+        if let Some((min, max)) = replication {
+            params["replication"] = json!({
+                "min_replication": min,
+                "max_replication": max,
+            });
         }
         if let Some(cap) = capability {
             params["capability"] = json!(cap);

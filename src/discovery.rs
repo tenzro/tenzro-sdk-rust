@@ -200,6 +200,67 @@ impl DiscoveryClient {
             .await
     }
 
+    /// Resident experts and gates on this node's expert runtime, each with
+    /// its residency tier (`Warm` in memory / `Cold` on disk) and byte
+    /// footprint, plus the memory budget and whether GPU compute is active.
+    pub async fn moe_expert_status(&self) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call("tenzro_moeExpertStatus", serde_json::json!([]))
+            .await
+    }
+
+    /// Slice a catalog checkpoint into per-expert blobs, optionally
+    /// block-quantizing each projection, and publish them for holders to
+    /// load. `quant` is a preset (`q4_k_m` / `q8_0` / `q4_k` / `q6_k`) or a
+    /// per-projection object like `{"gate":"q4_k","up":"q4_k","down":"q6_k"}`;
+    /// pass `serde_json::Value::Null` to publish dense f32 blobs. `experts`
+    /// empty prepares every expert in the layer.
+    pub async fn moe_prepare_experts(
+        &self,
+        model_id: &str,
+        layer: u32,
+        experts: Vec<u32>,
+        include_gate: bool,
+        quant: serde_json::Value,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::json!({
+            "model_id": model_id,
+            "layer": layer,
+            "include_gate": include_gate,
+        });
+        if !experts.is_empty() {
+            params["experts"] = serde_json::json!(experts);
+        }
+        if !quant.is_null() {
+            params["quant"] = quant;
+        }
+        self.rpc.call("tenzro_moePrepareExperts", params).await
+    }
+
+    /// Run one distributed MoE layer forward on the node's expert runtime:
+    /// gate `hidden` locally, fan the selected experts out to holders over
+    /// the `tenzro/moe` transport, and combine the gate-weighted outputs.
+    /// `hidden` is the row-major `[num_tokens, d_model]` activation.
+    pub async fn moe_forward(
+        &self,
+        model_id: &str,
+        layer: u32,
+        d_model: u32,
+        hidden: Vec<f32>,
+    ) -> SdkResult<serde_json::Value> {
+        self.rpc
+            .call(
+                "tenzro_moeForward",
+                serde_json::json!({
+                    "model_id": model_id,
+                    "layer": layer,
+                    "d_model": d_model,
+                    "hidden": hidden,
+                }),
+            )
+            .await
+    }
+
     /// Peer IDs currently discovered on this node's local segment via mDNS.
     /// Returns `{ local_peers: [..], count, available }`; `available` is
     /// false when local discovery is not running.

@@ -281,28 +281,33 @@ impl PaymentClient {
 
     /// Settles a payment between two parties on-chain
     ///
+    /// `tenzro_settlePayment` is an alias for `tenzro_settle` on the node;
+    /// the payer maps to the settlement `customer` and the payee to the
+    /// `provider`. The amount must meet the node's minimum settlement
+    /// amount (default 1000 wei).
+    ///
     /// # Arguments
     ///
-    /// * `from` - Payer address (hex)
-    /// * `to` - Payee address (hex)
-    /// * `amount` - Payment amount (decimal string)
+    /// * `from` - Payer address (hex) — the settlement customer
+    /// * `to` - Payee address (hex) — the settlement provider
+    /// * `amount` - Payment amount (wei)
     /// * `service_type` - Type of service being paid for (e.g., "inference", "tee")
     pub async fn settle_payment(
         &self,
         from: &str,
         to: &str,
-        amount: &str,
+        amount: u64,
         service_type: &str,
     ) -> SdkResult<PaymentReceipt> {
         self.rpc
             .call(
                 "tenzro_settlePayment",
-                serde_json::json!([{
-                    "from": from,
-                    "to": to,
+                serde_json::json!({
+                    "customer": from,
+                    "provider": to,
                     "amount": amount,
                     "service_type": service_type,
-                }]),
+                }),
             )
             .await
     }

@@ -82,7 +82,9 @@ impl WalletClient {
         self.rpc
             .call(
                 "tenzro_tokenBalance",
-                serde_json::json!([format!("0x{}", hex::encode(address.as_bytes()))]),
+                serde_json::json!({
+                    "address": format!("0x{}", hex::encode(address.as_bytes()))
+                }),
             )
             .await
     }

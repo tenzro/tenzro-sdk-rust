@@ -58,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Open a payment channel
     println!("Opening a micropayment channel...");
     let channel_id = settlement.open_payment_channel(
+        &payer_addr,
         "0x0000000000000000000000000000000000000001",
         10000000,
     ).await?;
@@ -73,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         customer: "0x0000000000000000000000000000000000000003".to_string(),
         amount: 5000,
         asset: "TNZO".to_string(),
+        ..Default::default()
     };
 
     let receipt = settlement.settle(request).await?;

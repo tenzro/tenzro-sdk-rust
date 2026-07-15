@@ -180,6 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         customer: "0x0000000000000000000000000000000000000000".to_string(),
         amount: 500,
         asset: "TNZO".to_string(),
+        ..Default::default()
     }).await?;
     println!("   Settlement: {}", settlement.receipt_id);
     println!("   Status:     {}\n", settlement.status);

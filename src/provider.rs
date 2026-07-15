@@ -54,17 +54,19 @@ impl ProviderClient {
     /// # let config = SdkConfig::testnet();
     /// # let client = TenzroClient::connect(config).await?;
     /// let provider = client.provider();
-    /// let task_id = provider.download_model("gemma4-9b").await?;
-    /// println!("Download started: {}", task_id);
+    /// let status = provider.download_model("gemma4-9b").await?;
+    /// println!("Download {}: {:.1}%", status.status, status.progress_percent);
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn download_model(&self, model_id: &str) -> SdkResult<String> {
-        let result: serde_json::Value = self
+    pub async fn download_model(&self, model_id: &str) -> SdkResult<DownloadProgress> {
+        let result = self
             .rpc
-            .call("tenzro_downloadModel", json!([model_id]))
+            .call("tenzro_downloadModel", json!({ "model_id": model_id }))
             .await?;
-        Ok(result.as_str().unwrap_or("").to_string())
+        serde_json::from_value(result).map_err(|e| {
+            SdkError::RpcError(format!("Failed to parse download status: {}", e))
+        })
     }
 
     /// Get download progress for a model
@@ -79,14 +81,14 @@ impl ProviderClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let provider = client.provider();
     /// let progress = provider.get_download_progress("gemma4-9b").await?;
-    /// println!("Progress: {:.1}%", progress.progress * 100.0);
+    /// println!("Progress: {:.1}%", progress.progress_percent);
     /// # Ok(())
     /// # }
     /// ```
     pub async fn get_download_progress(&self, model_id: &str) -> SdkResult<DownloadProgress> {
         let result = self
             .rpc
-            .call("tenzro_getDownloadProgress", json!([model_id]))
+            .call("tenzro_getDownloadProgress", json!({ "model_id": model_id }))
             .await?;
         serde_json::from_value(result).map_err(|e| {
             SdkError::RpcError(format!("Failed to parse download progress: {}", e))
@@ -171,7 +173,7 @@ impl ProviderClient {
     /// ```
     pub async fn stop_model(&self, model_id: &str) -> SdkResult<()> {
         self.rpc
-            .call::<serde_json::Value>("tenzro_stopModel", json!([model_id]))
+            .call::<serde_json::Value>("tenzro_stopModel", json!({ "model_id": model_id }))
             .await?;
         Ok(())
     }
@@ -225,10 +227,12 @@ impl ProviderClient {
     pub async fn chat(&self, model_id: &str, messages: Vec<ChatMessage>) -> SdkResult<ChatResponse> {
         let result = self
             .rpc
-            .call("tenzro_chat", json!([model_id, messages]))
+            .call(
+                "tenzro_chat",
+                json!({ "model_id": model_id, "messages": messages }),
+            )
             .await?;
-        serde_json::from_value(result)
-            .map_err(|e| SdkError::RpcError(format!("Failed to parse chat response: {}", e)))
+        parse_rich_chat_response(result)
     }
 
     /// Send a chat completion with generation options. Use this when
@@ -262,9 +266,8 @@ impl ProviderClient {
         if let Some(n) = opts.draft_n {
             params["draft_n"] = json!(n);
         }
-        let result = self.rpc.call("tenzro_chat", json!([params])).await?;
-        serde_json::from_value(result)
-            .map_err(|e| SdkError::RpcError(format!("Failed to parse chat response: {}", e)))
+        let result = self.rpc.call("tenzro_chat", params).await?;
+        parse_rich_chat_response(result)
     }
 
     /// Get hardware profile of the node
@@ -625,6 +628,47 @@ impl ProviderClient {
     }
 }
 
+/// Maps the node's rich chat envelope (Anthropic Messages-style:
+/// `{model, content: [{type: "text", text}, ...], usage}`) into the flat
+/// [`ChatResponse`]. Text blocks are concatenated; thinking/tool blocks
+/// are skipped.
+fn parse_rich_chat_response(result: serde_json::Value) -> SdkResult<ChatResponse> {
+    let content = result
+        .get("content")
+        .and_then(|c| c.as_array())
+        .ok_or_else(|| {
+            SdkError::RpcError(format!(
+                "chat response missing 'content' blocks: {}",
+                result
+            ))
+        })?;
+    let response = content
+        .iter()
+        .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))
+        .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+        .collect::<Vec<_>>()
+        .join("");
+    let model_id = result
+        .get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let usage = result.get("usage");
+    let tokens_used = usage
+        .and_then(|u| u.get("input_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0)
+        + usage
+            .and_then(|u| u.get("output_tokens"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+    Ok(ChatResponse {
+        response,
+        model_id,
+        tokens_used: tokens_used as u32,
+    })
+}
+
 /// Whether a served model is announced to the network or kept local-only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -751,18 +795,28 @@ impl ChatOptions {
 }
 
 /// Model download progress
+///
+/// Mirrors the node's `ModelDownloadStatus` wire shape.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
     /// Model ID being downloaded
+    #[serde(default)]
     pub model_id: String,
-    /// Download status (pending, downloading, completed, failed)
+    /// Download status (not_started, downloading, completed, failed)
+    #[serde(default)]
     pub status: String,
-    /// Progress as a fraction (0.0 to 1.0)
-    pub progress: f64,
+    /// Progress as a percentage (0.0 to 100.0)
+    #[serde(default)]
+    pub progress_percent: f64,
     /// Bytes downloaded so far
-    pub bytes_downloaded: u64,
+    #[serde(default)]
+    pub downloaded_bytes: u64,
     /// Total bytes to download
+    #[serde(default)]
     pub total_bytes: u64,
+    /// Error message when status is "failed"
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 /// Hardware profile of a node

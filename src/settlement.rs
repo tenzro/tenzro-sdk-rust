@@ -54,6 +54,7 @@ impl SettlementClient {
     ///     customer: "0xcustomer...".to_string(),
     ///     amount: 1000000,
     ///     asset: "TNZO".to_string(),
+    ///     ..Default::default()
     /// };
     ///
     /// let response = settlement_client.settle(request).await?;
@@ -62,18 +63,20 @@ impl SettlementClient {
     /// # }
     /// ```
     pub async fn settle(&self, request: SettlementRequest) -> SdkResult<SettleResponse> {
-        self.rpc
-            .call(
-                "tenzro_settle",
-                serde_json::json!([{
-                    "request_id": request.request_id,
-                    "provider": request.provider,
-                    "customer": request.customer,
-                    "amount": request.amount,
-                    "asset": request.asset,
-                }]),
-            )
-            .await
+        let mut params = serde_json::json!({
+            "request_id": request.request_id,
+            "provider": request.provider,
+            "customer": request.customer,
+            "amount": request.amount,
+            "asset": request.asset,
+        });
+        if let Some(service_type) = &request.service_type {
+            params["service_type"] = serde_json::json!(service_type);
+        }
+        if let Some(proof) = &request.proof {
+            params["proof"] = serde_json::json!(proof);
+        }
+        self.rpc.call("tenzro_settle", params).await
     }
 
     /// Gets a settlement by receipt ID
@@ -96,7 +99,7 @@ impl SettlementClient {
         self.rpc
             .call(
                 "tenzro_getSettlement",
-                serde_json::json!([receipt_id]),
+                serde_json::json!({ "receipt_id": receipt_id }),
             )
             .await
     }
@@ -460,6 +463,13 @@ impl SettlementClient {
 
     /// Opens a micropayment channel
     ///
+    /// # Arguments
+    /// * `sender` - Payer address funding the channel (0x-hex)
+    /// * `counterparty` - Payee address (0x-hex)
+    /// * `deposit` - Channel deposit (wei)
+    ///
+    /// Returns the channel ID. The node applies a 30-day expiry.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -471,6 +481,7 @@ impl SettlementClient {
     /// let settlement = client.settlement();
     ///
     /// let channel_id = settlement.open_payment_channel(
+    ///     "0xsender...",
     ///     "0xpayee...",
     ///     10000000,
     /// ).await?;
@@ -480,18 +491,26 @@ impl SettlementClient {
     /// ```
     pub async fn open_payment_channel(
         &self,
-        payee: &str,
+        sender: &str,
+        counterparty: &str,
         deposit: u64,
     ) -> SdkResult<String> {
-        self.rpc
+        let result: serde_json::Value = self
+            .rpc
             .call(
                 "tenzro_openPaymentChannel",
-                serde_json::json!([{
-                    "payee": payee,
+                serde_json::json!({
+                    "sender": sender,
+                    "counterparty": counterparty,
                     "deposit": deposit,
-                }]),
+                }),
             )
-            .await
+            .await?;
+        Ok(result
+            .get("channel_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string())
     }
 
     /// Closes a micropayment channel
@@ -506,7 +525,7 @@ impl SettlementClient {
 }
 
 /// Settlement request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettlementRequest {
     /// Unique request ID
     pub request_id: String,
@@ -514,10 +533,19 @@ pub struct SettlementRequest {
     pub provider: String,
     /// Customer address
     pub customer: String,
-    /// Settlement amount
+    /// Settlement amount (wei). Must meet the node's minimum settlement
+    /// amount (default 1000) or the settlement engine rejects it.
     pub amount: u64,
     /// Asset symbol (e.g., "TNZO", "USDC")
     pub asset: String,
+    /// Service type (e.g., "inference", "tee", "agent"; other values become
+    /// a custom service type). Node defaults to "inference" when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_type: Option<String>,
+    /// Service proof carried into the settlement receipt. Node substitutes
+    /// a placeholder when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proof: Option<String>,
 }
 
 /// Settlement response
@@ -526,8 +554,8 @@ pub struct SettleResponse {
     /// Receipt ID
     #[serde(default)]
     pub receipt_id: String,
-    /// Transaction hash
-    #[serde(default)]
+    /// Transaction hash (node sends `transaction_hash`)
+    #[serde(default, alias = "transaction_hash")]
     pub tx_hash: String,
     /// Settlement status
     #[serde(default)]

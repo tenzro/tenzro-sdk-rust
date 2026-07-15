@@ -592,6 +592,16 @@ impl TenzroClient {
         crate::iroh::IrohClient::new(self.rpc.clone())
     }
 
+    /// Creates an app-hosting client for the site / function / machine /
+    /// lease JSON-RPC surface — deploy a static site, a `wasi:http`
+    /// function, or a Firecracker microVM and serve it under a public
+    /// hostname routed from the operator's ingress edge to any serving
+    /// node over the `tenzro/http` ALPN. Mutations are DID-owner
+    /// authenticated via `with_did_envelope`.
+    pub fn hosting(&self) -> crate::hosting::HostingClient {
+        crate::hosting::HostingClient::new(self.rpc.clone())
+    }
+
     /// Creates an adaptive-burn governance dial client — read-only
     /// access to the current `BurnRateConfig`, rolling supply metrics,
     /// recommended burn-rate action, and in-flight adaptive-burn

@@ -104,6 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Open payment channel
     let channel_id = settlement.open_payment_channel(
+        &payer_addr,
         "0x0000000000000000000000000000000000000001",
         10000000,
     ).await?;
@@ -148,19 +149,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check voting power
     let voting_power = governance.get_voting_power("0x0000000000000000000000000000000000000000").await?;
-    println!("  Voting power: {} TNZO", voting_power.total_power);
+    println!("  Voting power: {} wei", voting_power.voting_power);
 
     // Create proposal
     let proposal = governance.create_proposal(
         "Network Upgrade Proposal",
         "Upgrade network to support advanced AI features",
         "parameter_change",
+        "0x0000000000000000000000000000000000000000",
     ).await?;
     println!("Created proposal: {}", proposal.proposal_id);
 
     // Vote on proposal
-    let vote = governance.vote(&proposal.proposal_id, "for").await?;
-    println!("Voted on proposal: {}", vote.vote_id);
+    // Signature-gated: sign "tenzro:vote:{proposal_id}:for" with the voter's key.
+    let vote = governance.vote(
+        &proposal.proposal_id,
+        "0x0000000000000000000000000000000000000000",
+        "for",
+        "<hex-signature>",
+        "<hex-public-key>",
+    ).await?;
+    println!("Voted on proposal (power used: {})", vote.voting_power);
     println!();
 
     // ========================================

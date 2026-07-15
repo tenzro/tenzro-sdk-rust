@@ -107,6 +107,7 @@ pub mod events;
 pub mod governance;
 pub mod identity;
 pub mod inference;
+pub mod hosting;
 pub mod iroh;
 pub mod marketplace;
 pub mod memory;
@@ -248,11 +249,16 @@ pub use erc8004::{
     Erc8004Agent, Erc8004AgentId, Erc8004Calldata, Erc8004Client, Erc8004Metadata,
 };
 pub use events::{Event, EventClient, Subscription, WebhookDeletion, WebhookList, WebhookRegistration};
-pub use governance::{GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower};
+pub use governance::{
+    DelegationResult, GovernanceClient, GovernanceProposal, VoteReceipt, VotingPower,
+};
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};
 pub use inference::{
     InferenceClient, IntentParams, OrchestrateRequest, OrchestrationOutcome, OrchestrationStep,
     RouteDecision,
+};
+pub use hosting::{
+    DeployFunctionBuilder, DeployMachineBuilder, HostingClient, PublishSiteBuilder, SiteRoute,
 };
 pub use iroh::{
     IrohAlpnEntry, IrohAlpnList, IrohClient, IrohEndpointId, IrohInfo, IrohPublishResult,

@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Check voting power
     println!("Checking voting power...");
     let voting_power = governance.get_voting_power("0x0000000000000000000000000000000000000000").await?;
-    println!("Your voting power: {} TNZO\n", voting_power.total_power);
+    println!("Your voting power: {} wei\n", voting_power.voting_power);
 
     // List existing proposals
     println!("Listing all governance proposals...");
@@ -46,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Increase Block Size Limit",
         "This proposal suggests increasing the block size limit from 1MB to 2MB.",
         "parameter_change",
+        "0x0000000000000000000000000000000000000000",
     ).await?;
 
     println!("Proposal created!");
@@ -57,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Community Development Grant",
         "Grant 100,000 TNZO to fund community-driven development initiatives for Q1 2026.",
         "treasury_grant",
+        "0x0000000000000000000000000000000000000000",
     ).await?;
 
     println!("Grant proposal created!");
@@ -64,17 +66,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Vote on the first proposal
     println!("Voting on the parameter change proposal...");
-    let vote_receipt = governance.vote(&proposal.proposal_id, "for").await?;
+    // Votes are signature-gated: sign "tenzro:vote:{proposal_id}:for" with the
+    // voter's key. Placeholder signature/public key shown here — the node
+    // rejects votes whose signature does not verify against the voter address.
+    let vote_receipt = governance.vote(
+        &proposal.proposal_id,
+        "0x0000000000000000000000000000000000000000",
+        "for",
+        "<hex-signature>",
+        "<hex-public-key>",
+    ).await?;
     println!("Vote cast successfully!");
-    println!("  Vote ID: {}", vote_receipt.vote_id);
+    println!("  Voting power used: {}", vote_receipt.voting_power);
     println!("  Vote: For");
     println!("  Proposal: {}\n", proposal.proposal_id);
 
     // Vote on the grant proposal
     println!("Voting on the grant proposal...");
-    let grant_vote = governance.vote(&grant_proposal.proposal_id, "abstain").await?;
+    let grant_vote = governance.vote(
+        &grant_proposal.proposal_id,
+        "0x0000000000000000000000000000000000000000",
+        "abstain",
+        "<hex-signature>",
+        "<hex-public-key>",
+    ).await?;
     println!("Vote cast successfully!");
-    println!("  Vote ID: {}", grant_vote.vote_id);
+    println!("  Voting power used: {}", grant_vote.voting_power);
     println!("  Vote: Abstain\n");
 
     // Get details of a specific proposal
