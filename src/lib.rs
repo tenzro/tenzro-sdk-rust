@@ -316,6 +316,6 @@ pub use training::{
 pub use validator::{
     ListValidatorsResult, ValidatorClient, ValidatorRegistryEntry, ValidatorStatus,
 };
-pub use wallet::{AssetBalance, WalletBalance, WalletClient};
+pub use wallet::{AssetBalance, HybridSigner, WalletBalance, WalletClient};
 pub use wormhole::{WormholeChainId, WormholeClient, WormholeTransferResult, WormholeVaaId};
 pub use zk::{CircuitInfo, ProvingKey, ZkClient, ZkProof, ZkVerifyResult};

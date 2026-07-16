@@ -2,11 +2,89 @@
 //!
 //! This module provides wallet management functionality for the SDK.
 
-use crate::error::SdkResult;
+use crate::error::{SdkError, SdkResult};
 use crate::rpc::RpcClient;
 use crate::types::Address;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
+
+/// A self-custody hybrid signer: holds an Ed25519 + ML-DSA-65 keypair
+/// locally and signs both legs of a Tenzro transaction without the node
+/// ever seeing the secret. This is the client side of the self-custody
+/// path — TEE-equipped or key-holding runners implement it (the CLI's
+/// sealed `~/.tenzro/hybrid_key.json` keystore is one such implementation)
+/// so `WalletClient::send_self_custody` can build the canonical
+/// `Transaction::hash()` preimage, obtain both signatures, and submit via
+/// `eth_sendRawTransaction`.
+///
+/// The server-custodial `WalletClient::send` path remains the default for
+/// runners that bring no local key; this trait is purely additive.
+#[async_trait]
+pub trait HybridSigner: Send + Sync {
+    /// Raw 32-byte Ed25519 public key. This IS the account address on the
+    /// Tenzro native convention — the node's `eth_sendRawTransaction`
+    /// verifier accepts a raw 32-byte pubkey placed in `from`.
+    fn ed25519_public_key(&self) -> Vec<u8>;
+
+    /// ML-DSA-65 verifying key bytes (FIPS 204, exactly 1952) for the
+    /// mandatory `pq_public_key` field.
+    fn ml_dsa_verifying_key(&self) -> Vec<u8>;
+
+    /// Sign `message` with both legs. Returns
+    /// `(ed25519_sig_64, ml_dsa_sig_3309)`.
+    async fn sign_hybrid(&self, message: &[u8]) -> SdkResult<(Vec<u8>, Vec<u8>)>;
+}
+
+/// Builds the canonical `Transaction::hash()` preimage for a native TNZO
+/// transfer, byte-identical to `tenzro_types::transaction::Transaction::hash`.
+///
+/// Preimage order (all integers little-endian):
+/// `chain_id ‖ from(32) ‖ to(32) ‖ nonce ‖ gas_limit ‖ gas_price ‖
+/// timestamp ‖ tx_type_json ‖ (no memo) ‖ pq_len(u32) ‖ pq_public_key`.
+///
+/// The SDK is workspace-isolated (empty `[workspace]`, standalone git
+/// mirror) so it cannot depend on `tenzro-types`; the preimage is
+/// reproduced here. `tx_type_json` reproduces serde's externally-tagged
+/// `{"Transfer":{"amount":<N>}}` with `serde_json`'s exact formatting (no
+/// whitespace, bare integer).
+#[allow(clippy::too_many_arguments)]
+fn transfer_tx_hash(
+    chain_id: u64,
+    from: &[u8; 32],
+    to: &[u8; 32],
+    nonce: u64,
+    gas_limit: u64,
+    gas_price: u64,
+    timestamp_ms: i64,
+    amount_wei: u128,
+    pq_public_key: &[u8],
+) -> [u8; 32] {
+    let tx_type_json = format!("{{\"Transfer\":{{\"amount\":{}}}}}", amount_wei);
+    let mut hasher = Sha256::new();
+    hasher.update(chain_id.to_le_bytes());
+    hasher.update(from);
+    hasher.update(to);
+    hasher.update(nonce.to_le_bytes());
+    hasher.update(gas_limit.to_le_bytes());
+    hasher.update(gas_price.to_le_bytes());
+    hasher.update(timestamp_ms.to_le_bytes());
+    hasher.update(tx_type_json.as_bytes());
+    // memo is None on native transfers — nothing appended.
+    hasher.update((pq_public_key.len() as u32).to_le_bytes());
+    hasher.update(pq_public_key);
+    hasher.finalize().into()
+}
+
+/// Current wall-clock time in milliseconds since the Unix epoch, matching
+/// `tenzro_types::primitives::Timestamp::now()`.
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
 
 /// Wallet client for managing wallets and balances
 ///
@@ -155,6 +233,93 @@ impl WalletClient {
                     "gas_price": 1_000_000_000u64,
                     "nonce": nonce,
                     "chain_id": chain_id,
+                }),
+            )
+            .await
+    }
+
+    /// Signs a TNZO transfer locally with a self-custody [`HybridSigner`]
+    /// and submits it via `eth_sendRawTransaction` — the node never holds
+    /// the secret.
+    ///
+    /// The signer's raw 32-byte Ed25519 public key is the `from` account.
+    /// This method fetches the nonce and chain id, builds the canonical
+    /// `Transaction::hash()` preimage (including the PQ verifying key),
+    /// asks the signer for both the Ed25519 and ML-DSA-65 legs over that
+    /// hash, and submits the pre-signed transaction. Both legs are
+    /// mandatory; the node rejects a raw send that omits either.
+    ///
+    /// Amount is in wei (smallest TNZO unit). Returns the transaction hash.
+    pub async fn send_self_custody(
+        &self,
+        signer: &Arc<dyn HybridSigner>,
+        to: Address,
+        amount_wei: u128,
+    ) -> SdkResult<String> {
+        let from_bytes = signer.ed25519_public_key();
+        if from_bytes.len() != 32 {
+            return Err(SdkError::WalletError(format!(
+                "self-custody Ed25519 public key must be 32 bytes, got {}",
+                from_bytes.len()
+            )));
+        }
+        let mut from_arr = [0u8; 32];
+        from_arr.copy_from_slice(&from_bytes);
+        let from_hex = format!("0x{}", hex::encode(from_arr));
+        let to_hex = format!("0x{}", hex::encode(to.as_bytes()));
+        let mut to_arr = [0u8; 32];
+        to_arr.copy_from_slice(to.as_bytes());
+
+        let nonce_hex: String = self
+            .rpc
+            .call("tenzro_getNonce", serde_json::json!([from_hex.clone()]))
+            .await?;
+        let nonce =
+            u64::from_str_radix(nonce_hex.strip_prefix("0x").unwrap_or(&nonce_hex), 16)
+                .unwrap_or(0);
+
+        let chain_hex: String = self
+            .rpc
+            .call("eth_chainId", serde_json::json!([]))
+            .await?;
+        let chain_id =
+            u64::from_str_radix(chain_hex.strip_prefix("0x").unwrap_or(&chain_hex), 16)
+                .unwrap_or(1337);
+
+        let pq_public_key = signer.ml_dsa_verifying_key();
+        let gas_limit = 21_000u64;
+        let gas_price = 1_000_000_000u64;
+        let timestamp_ms = now_ms();
+
+        let hash = transfer_tx_hash(
+            chain_id,
+            &from_arr,
+            &to_arr,
+            nonce,
+            gas_limit,
+            gas_price,
+            timestamp_ms,
+            amount_wei,
+            &pq_public_key,
+        );
+        let (ed_sig, ml_dsa_sig) = signer.sign_hybrid(&hash).await?;
+
+        self.rpc
+            .call(
+                "eth_sendRawTransaction",
+                serde_json::json!({
+                    "from": from_hex,
+                    "to": to_hex,
+                    "value": amount_wei.to_string(),
+                    "gas_limit": gas_limit,
+                    "gas_price": gas_price,
+                    "nonce": nonce,
+                    "chain_id": chain_id,
+                    "timestamp": timestamp_ms,
+                    "public_key": hex::encode(from_arr),
+                    "signature": hex::encode(&ed_sig),
+                    "pq_public_key": hex::encode(&pq_public_key),
+                    "pq_signature": hex::encode(&ml_dsa_sig),
                 }),
             )
             .await
