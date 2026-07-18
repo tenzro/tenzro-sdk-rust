@@ -192,9 +192,8 @@ pub use svm_cross_vm::{
 
 // Re-export client modules
 pub use app::{
-    AgentResult as AppAgentResult, AppClient, BridgeResult as AppBridgeResult, FundResult,
-    InferenceResult as AppInferenceResult, MasterWallet, TaskResult as AppTaskResult, TxResult,
-    UsageStats, UserWallet,
+    AppClient, AppRecord, AppSigningKeySpec, AppSigningKeyView, DidEnvelope,
+    EnvelopeSigner, SettleOutcome, SettlementAuthorization,
 };
 pub use agent::AgentClient;
 pub use agent_payments::AgentPaymentClient;

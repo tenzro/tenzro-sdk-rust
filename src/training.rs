@@ -342,7 +342,7 @@ impl TrainingClient {
 
     /// Ask the syncer whether the current round should finalize, keep waiting,
     /// or advance on a no-endorsement certificate. The decision is driven by
-    /// the DiLoCo grace window: `wait` reports the remaining milliseconds,
+    /// the grace window: `wait` reports the remaining milliseconds,
     /// `finalize` and `no_quorum` report the round number. Returns the raw
     /// `{ decision, .. }` object.
     pub async fn decide_round(&self, task_id: &str) -> SdkResult<serde_json::Value> {

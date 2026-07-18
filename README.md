@@ -256,22 +256,50 @@ SDK consumers see consistent state across node upgrades and reboots:
 
 ## AppClient (Developer Pattern)
 
+You charge fiat on your own payment provider and settle the corresponding TNZO
+from your own app wallet — the network never holds custody of your processor
+keys or your funds. See [Developer payments](https://tenzro.com/docs/developer-payments).
+
 ```rust
-use tenzro_sdk::AppClient;
+use std::sync::Arc;
+use tenzro_sdk::app::{AppClient, AppSigningKeySpec, SettlementAuthorization};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app = AppClient::new(
-        "https://rpc.tenzro.xyz",
-        "master-private-key",
-    ).await?;
+    let app = AppClient::new("https://rpc.tenzro.xyz").await?;
 
-    // Create user wallet (funded from master)
-    let user = app.create_user_wallet("alice", 1_000_000_000_000_000_000).await?;
+    // Register the app in the on-chain registry (developer-signed DID envelope).
+    // The app wallet is your own TNZO treasury; margin is a pricing input, capped at 20%.
+    app.register_app(
+        &envelope_signer,                 // Arc<dyn EnvelopeSigner>
+        "my-app",
+        "did:tenzro:machine:...",         // developer DID that owns the app
+        "0x<app-wallet-hex>",
+        vec![AppSigningKeySpec {
+            key_id: "key-1".into(),
+            public_key: enrolled_ed25519_pubkey.to_vec(),
+            daily_limit_tnzo: None,
+        }],
+        500,                              // margin_bps
+        0,                                // min_balance
+        true,                             // active
+    )
+    .await?;
 
-    // Sponsor inference (master pays)
-    let result = app.sponsor_inference(&user.address, "gemma3-270m", "Hello").await?;
-    println!("{}", result.output);
+    // After your processor confirms the charge, sign a settlement authorization
+    // with one of your enrolled keys. Idempotent per (app_id, external_ref).
+    let auth = SettlementAuthorization {
+        app_id: "my-app".into(),
+        chain_id: 1337,
+        payer_did: "did:tenzro:human:...".into(),
+        amount_tnzo: 10_000_000_000_000_000_000, // 10 TNZO, base units
+        external_ref: charge_id,                 // your PSP charge id
+        nonce: rand::random(),
+        expiry: now_ms + 60_000,
+        key_id: "key-1".into(),
+    };
+    let outcome = app.settle_authorized(&settlement_signer, &auth).await?;
+    println!("duplicate = {}", outcome.duplicate);
 
     Ok(())
 }

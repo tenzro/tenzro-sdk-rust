@@ -1,217 +1,187 @@
-//! App Developer example for Tenzro SDK
+//! App developer example — on-chain app registry + non-custodial settlement.
 //!
-//! This example demonstrates the developer-funded app pattern:
-//! - Creating an AppClient with a master wallet
-//! - Spawning and funding user sub-wallets
-//! - Sponsoring transactions, inference, agents, bridges, and tasks
-//! - Setting spending policies and session keys
-//! - Tracking usage statistics
+//! Demonstrates the flow a developer follows to bill fiat-priced usage on
+//! Tenzro without Tenzro ever holding custody of their payment-provider
+//! secrets or their funds:
+//!
+//!   1. register an app on-chain (permissionless — signed with the developer's
+//!      own DID key)
+//!   2. (fund the app's own TNZO wallet — omitted here; a normal transfer)
+//!   3. after charging the end user fiat on the developer's own PSP, sign a
+//!      settlement authorization and have any node execute the TNZO movement
+//!   4. deactivate the app when done
+//!
+//! The developer's key never leaves this process — the SDK computes the
+//! canonical hashes and asks a local `Signer` to sign them. For a fully
+//! non-custodial backend the signature + DID envelope can be produced in the
+//! developer's own service and passed to the `*_presigned` methods instead.
 
-use tenzro_sdk::AppClient;
+use async_trait::async_trait;
+use std::sync::Arc;
+use tenzro_crypto::{Ed25519SignerImpl, KeyPair, KeyType, Signer as CryptoSigner};
+use tenzro_sdk::app::{
+    did_key_from_ed25519, AppClient, AppSigningKeySpec, EnvelopeSigner, SettlementAuthorization,
+};
+use tenzro_sdk::signer::{SignContext, Signature, Signer, SignerError, SignerKind};
+
+/// Adapts a local `tenzro-crypto` Ed25519 key to the SDK's settlement `Signer`
+/// trait, which signs a 32-byte hash (`SettlementAuthorization::signing_hash`).
+/// A production developer backend supplies its own `Signer` (HSM, KMS, sealed
+/// key, ...).
+struct Ed25519SdkSigner {
+    inner: Ed25519SignerImpl,
+}
+
+#[async_trait]
+impl Signer for Ed25519SdkSigner {
+    fn describe(&self) -> SignerKind {
+        SignerKind::Ed25519
+    }
+
+    async fn sign(
+        &self,
+        hash: [u8; 32],
+        _ctx: &SignContext,
+    ) -> Result<Signature, SignerError> {
+        let sig = self
+            .inner
+            .sign(&hash)
+            .map_err(|e| SignerError::BackendUnavailable(e.to_string()))?;
+        Ok(Signature {
+            bytes: sig.as_bytes().to_vec(),
+            aux: Vec::new(),
+        })
+    }
+}
+
+/// Adapts a local `tenzro-crypto` Ed25519 key to the SDK's `EnvelopeSigner`
+/// trait, which signs the raw DID-envelope preimage (the node verifies Ed25519
+/// over those exact bytes). A production developer backend signs the preimage
+/// with whatever holds the developer DID's key.
+struct Ed25519EnvelopeSigner {
+    inner: Ed25519SignerImpl,
+}
+
+#[async_trait]
+impl EnvelopeSigner for Ed25519EnvelopeSigner {
+    async fn sign_preimage(&self, preimage: &[u8]) -> Result<Vec<u8>, SignerError> {
+        let sig = self
+            .inner
+            .sign(preimage)
+            .map_err(|e| SignerError::BackendUnavailable(e.to_string()))?;
+        Ok(sig.as_bytes().to_vec())
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    println!("=== Tenzro SDK App Developer Example ===\n");
+    println!("=== Tenzro SDK — app registry + non-custodial settlement ===\n");
 
-    // ========================================================================
-    // 1. Initialize the AppClient with a master wallet
-    // ========================================================================
-    println!("1. Initializing AppClient with master wallet...");
+    let app = AppClient::new("https://rpc.tenzro.xyz").await?;
 
-    // In production, load the private key from a secure vault / env var.
-    let master_key = std::env::var("TENZRO_MASTER_KEY")
-        .unwrap_or_else(|_| "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into());
+    // ------------------------------------------------------------------
+    // Developer identity: a did:key derived from a local Ed25519 key.
+    // ------------------------------------------------------------------
+    let dev_kp = KeyPair::generate(KeyType::Ed25519)?;
+    let dev_vk: [u8; 32] = dev_kp.public_key().as_bytes().try_into()?;
+    let developer_did = did_key_from_ed25519(&dev_vk);
+    let dev_signer: Arc<dyn EnvelopeSigner> = Arc::new(Ed25519EnvelopeSigner {
+        inner: Ed25519SignerImpl::new(dev_kp)?,
+    });
+    println!("developer DID: {developer_did}");
 
-    let app = AppClient::new("https://rpc.tenzro.xyz", &master_key).await?;
-    println!("   Master wallet: {}", app.master_wallet().address);
+    // ------------------------------------------------------------------
+    // Backend signing key: a separate Ed25519 key the developer's server
+    // uses to authorize settlements. Its verifying key goes on-chain.
+    // ------------------------------------------------------------------
+    let backend_kp = KeyPair::generate(KeyType::Ed25519)?;
+    let backend_vk: Vec<u8> = backend_kp.public_key().as_bytes().to_vec();
+    let backend_signer: Arc<dyn Signer> = Arc::new(Ed25519SdkSigner {
+        inner: Ed25519SignerImpl::new(backend_kp)?,
+    });
 
-    let balance = app.get_master_balance().await?;
-    println!("   Master balance: {} wei\n", balance);
-
-    // ========================================================================
-    // 2. Create user wallets
-    // ========================================================================
-    println!("2. Creating user wallets...");
-
-    // Fund Alice with 0.5 TNZO
-    let alice = app
-        .create_user_wallet("alice", 500_000_000_000_000_000)
-        .await?;
-    println!("   Alice: {} (label: {})", alice.address, alice.label);
-
-    // Fund Bob with 0.1 TNZO
-    let bob = app
-        .create_user_wallet("bob", 100_000_000_000_000_000)
-        .await?;
-    println!("   Bob:   {} (label: {})\n", bob.address, bob.label);
-
-    // ========================================================================
-    // 3. Set spending policies
-    // ========================================================================
-    println!("3. Setting spending policies...");
-
-    // Alice: 1 TNZO daily, 0.2 TNZO per tx
-    let alice_policy = app
-        .set_user_limits(
-            &alice.address,
-            1_000_000_000_000_000_000,  // 1 TNZO daily
-            200_000_000_000_000_000,    // 0.2 TNZO per tx
+    // ------------------------------------------------------------------
+    // 1. Register the app on-chain (5% developer margin).
+    // ------------------------------------------------------------------
+    println!("\n1. Registering app...");
+    let app_wallet = "0x00000000000000000000000000000000000000000000000000000000000000aa";
+    let record = app
+        .register_app(
+            &dev_signer,
+            "demo-app",
+            &developer_did,
+            app_wallet,
+            vec![AppSigningKeySpec {
+                key_id: "backend-1".into(),
+                public_key: backend_vk,
+                daily_limit_tnzo: None,
+            }],
+            500, // margin_bps = 5%
+            0,   // min_balance
+            true,
         )
         .await?;
     println!(
-        "   Alice policy: daily={} per_tx={}",
-        alice_policy.daily_limit, alice_policy.per_tx_limit
+        "   registered {} (margin {} bps, active={})",
+        record.app_id, record.margin_bps, record.active
     );
 
-    // Bob: 0.5 TNZO daily, 0.1 TNZO per tx
-    let bob_policy = app
-        .set_user_limits(
-            &bob.address,
-            500_000_000_000_000_000,    // 0.5 TNZO daily
-            100_000_000_000_000_000,    // 0.1 TNZO per tx
-        )
-        .await?;
+    // ------------------------------------------------------------------
+    // 2. (Fund the app wallet with the developer's own TNZO — a normal
+    //    transfer via WalletClient; omitted for brevity.)
+    // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // 3. After charging the end user fiat on the developer's own PSP,
+    //    authorize a TNZO settlement to the payer. `external_ref` is the
+    //    PSP charge id and is the idempotency key.
+    // ------------------------------------------------------------------
+    println!("\n3. Settling an authorized charge...");
+    let mut nonce = [0u8; 32];
+    getrandom::getrandom(&mut nonce)?;
+    let auth = SettlementAuthorization {
+        app_id: "demo-app".into(),
+        chain_id: 1337,
+        payer_did: "did:tenzro:human:payer".into(),
+        amount_tnzo: 1_000_000_000_000_000_000, // 1 TNZO
+        external_ref: "pi_3NqSampleCharge".into(),
+        nonce,
+        expiry: now_ms() + 60_000,
+        key_id: "backend-1".into(),
+    };
+    let outcome = app.settle_authorized(&backend_signer, &auth).await?;
     println!(
-        "   Bob policy:   daily={} per_tx={}\n",
-        bob_policy.daily_limit, bob_policy.per_tx_limit
+        "   success={} gross={} net={} commission={} duplicate={}",
+        outcome.success,
+        outcome.amount_tnzo,
+        outcome.payer_net_tnzo,
+        outcome.commission_tnzo,
+        outcome.duplicate
     );
 
-    // ========================================================================
-    // 4. Create session keys
-    // ========================================================================
-    println!("4. Creating session keys...");
+    // A replay of the same (app_id, external_ref) returns the recorded
+    // outcome with duplicate=true — no double charge.
+    let replay = app.settle_authorized(&backend_signer, &auth).await?;
+    println!("   replay duplicate={}", replay.duplicate);
 
-    let alice_session = app
-        .create_session_key(
-            &alice.address,
-            3600, // 1 hour
-            vec!["transfer".into(), "inference".into()],
-        )
+    // ------------------------------------------------------------------
+    // 4. Deactivate the app.
+    // ------------------------------------------------------------------
+    println!("\n4. Deactivating app...");
+    let updated = app
+        .set_app_status(&dev_signer, &developer_did, "demo-app", false)
         .await?;
-    println!(
-        "   Alice session: {} (expires: {}, ops: {:?})\n",
-        alice_session.session_id, alice_session.expires_at, alice_session.operations
-    );
-
-    // ========================================================================
-    // 5. Sponsor transactions (master pays gas)
-    // ========================================================================
-    println!("5. Sponsoring a transfer for Alice...");
-
-    let tx = app
-        .sponsor_transaction(
-            &alice.address,
-            &bob.address,
-            50_000_000_000_000_000, // 0.05 TNZO
-        )
-        .await?;
-    println!("   Tx hash: {}\n", tx.tx_hash);
-
-    // ========================================================================
-    // 6. Sponsor inference (master pays)
-    // ========================================================================
-    println!("6. Sponsoring inference for Bob...");
-
-    let inference = app
-        .sponsor_inference(&bob.address, "gemma3-270m", "Explain Tenzro Network in one sentence.")
-        .await?;
-    println!("   Model: {}", inference.model_id);
-    println!("   Output: {}", inference.output);
-    println!("   Tokens: {}, Cost: {} TNZO\n", inference.tokens, inference.cost);
-
-    // ========================================================================
-    // 7. Sponsor agent registration (master pays)
-    // ========================================================================
-    println!("7. Sponsoring agent registration for Alice...");
-
-    let agent = app
-        .sponsor_agent(
-            &alice.address,
-            "alice-trading-bot",
-            vec!["inference".into(), "settlement".into()],
-        )
-        .await?;
-    println!("   Agent ID: {}", agent.agent_id);
-    println!("   Agent wallet: {}\n", agent.wallet_address);
-
-    // ========================================================================
-    // 8. Sponsor bridge (master pays fees)
-    // ========================================================================
-    println!("8. Sponsoring bridge transfer for Bob...");
-
-    let bridge = app
-        .sponsor_bridge(
-            &bob.address,
-            "TNZO",
-            "tenzro",
-            "ethereum",
-            "100000000000000000", // 0.1 TNZO
-            "0xRecipientOnEthereum",
-        )
-        .await?;
-    println!("   Bridge tx: {}", bridge.tx_hash);
-    println!("   Status: {}\n", bridge.status);
-
-    // ========================================================================
-    // 9. Sponsor task posting (master pays budget)
-    // ========================================================================
-    println!("9. Sponsoring task posting for Alice...");
-
-    let task = app
-        .sponsor_task(
-            &alice.address,
-            "Summarize whitepaper",
-            "Read and summarize the Tenzro Network whitepaper in 500 words.",
-            "text_generation",
-            100_000_000_000_000_000, // 0.1 TNZO budget
-        )
-        .await?;
-    println!("   Task ID: {}\n", task.task_id);
-
-    // ========================================================================
-    // 10. Fund an existing wallet
-    // ========================================================================
-    println!("10. Topping up Bob's wallet...");
-
-    let fund = app
-        .fund_user_wallet(&bob.address, 200_000_000_000_000_000) // 0.2 TNZO
-        .await?;
-    println!("   Fund tx: {} (amount: {} wei)\n", fund.tx_hash, fund.amount);
-
-    // ========================================================================
-    // 11. List user wallets
-    // ========================================================================
-    println!("11. Listing all user wallets...");
-
-    let users = app.list_user_wallets().await?;
-    for u in &users {
-        println!("   - {} (label: {}, created: {})", u.address, u.label, u.created_at);
-    }
-    println!();
-
-    // ========================================================================
-    // 12. Usage statistics
-    // ========================================================================
-    println!("12. Usage statistics...");
-
-    let stats = app.get_usage_stats().await?;
-    println!("   Users created:       {}", stats.user_count);
-    println!("   Transactions:        {}", stats.transaction_count);
-    println!("   Total gas spent:     {} wei", stats.total_gas_spent);
-    println!("   Total inference cost: {} TNZO", stats.total_inference_cost);
-    println!("   Total bridge fees:   {} wei", stats.total_bridge_fees);
-    println!();
-
-    // ========================================================================
-    // 13. Access the full TenzroClient for advanced ops
-    // ========================================================================
-    println!("13. Using the underlying TenzroClient...");
-
-    let block = app.client().block_number().await?;
-    println!("   Current block: {}", block);
+    println!("   active={}", updated.active);
 
     println!("\n=== Done ===");
     Ok(())
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
