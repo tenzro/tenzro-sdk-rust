@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .enroll(EnrollPasskeyParams {
             display_name: Some("sign-smoke".into()),
             passkey_public_key_hex: pk_hex,
-            credential_id_hex: cred_hex,
+            credential_id_hex: cred_hex.clone(),
             ml_dsa_public_key_hex: pq_vk_hex,
             salt: 0,
         })
@@ -145,7 +145,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             account_address: enroll.smart_account_address.clone(),
             op_hash_hex,
             assertion: assertion_json,
+            credential_id_hex: cred_hex,
             ml_dsa_signature_hex: Some(ml_dsa_hex),
+            second_assertion: None,
+            second_credential_id_hex: None,
+            second_ml_dsa_signature_hex: None,
         })
         .await?;
     println!("  verified: {}", sign.verified);

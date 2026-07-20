@@ -3,6 +3,7 @@
 //! This module provides identity management functionality for
 //! TDIP (Tenzro Decentralized Identity Protocol) identities.
 
+use crate::app::EnvelopeSigner;
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;
 use serde::{Deserialize, Serialize};
@@ -186,23 +187,117 @@ impl IdentityClient {
             .await
     }
 
-    /// Adds a verifiable credential to an identity
-    pub async fn add_credential(&self, did: &str, credential_type: &str, issuer: Option<&str>, claims: Option<serde_json::Value>) -> SdkResult<serde_json::Value> {
+    /// Adds a verifiable credential to an identity with a pre-built
+    /// DID-envelope header value. The envelope must be signed by the issuer
+    /// (`method = "tenzro_addCredential"`, `params_hash` over
+    /// [`identity_credential_params`]). `proof_value` is an optional hex
+    /// Ed25519 signature by the issuer over the credential subject's
+    /// canonical bytes (`{"claims":{...},"id":"<did>"}` sorted-key JSON).
+    pub async fn add_credential_presigned(
+        &self,
+        did: &str,
+        credential_type: &str,
+        issuer: &str,
+        claims: &serde_json::Value,
+        envelope_header: &str,
+        proof_value: Option<&str>,
+        proof_type: Option<&str>,
+    ) -> SdkResult<serde_json::Value> {
+        let mut params = serde_json::json!({
+            "did": did,
+            "type": credential_type,
+            "issuer": issuer,
+            "claims": claims,
+            "envelope": envelope_header,
+        });
+        if let Some(pv) = proof_value {
+            params["proof_value"] = serde_json::json!(pv);
+            params["proof_type"] =
+                serde_json::json!(proof_type.unwrap_or("Ed25519Signature2020"));
+        }
+        self.rpc.call("tenzro_addCredential", params).await
+    }
+
+    /// Adds a verifiable credential, signing the DID envelope locally with
+    /// `signer` (the issuer's Ed25519 key). When `sign_proof` is true the
+    /// same signer also produces the durable credential proof over the
+    /// subject's canonical bytes.
+    pub async fn add_credential(
+        &self,
+        signer: &Arc<dyn crate::app::EnvelopeSigner>,
+        did: &str,
+        credential_type: &str,
+        issuer: &str,
+        claims: &serde_json::Value,
+        sign_proof: bool,
+    ) -> SdkResult<serde_json::Value> {
+        let claims_canonical = serde_json::to_vec(claims)
+            .map_err(|e| crate::error::SdkError::InvalidParameter(e.to_string()))?;
+        let params =
+            identity_credential_params(did, credential_type, issuer, &claims_canonical);
+        let env =
+            crate::app::build_envelope(signer, issuer, "tenzro_addCredential", &params).await?;
+        let proof_value = if sign_proof {
+            let subject_bytes = credential_subject_canonical_bytes(did, claims)?;
+            let sig = signer
+                .sign_preimage(&subject_bytes)
+                .await
+                .map_err(crate::error::SdkError::from)?;
+            Some(hex::encode(sig))
+        } else {
+            None
+        };
+        self.add_credential_presigned(
+            did,
+            credential_type,
+            issuer,
+            claims,
+            &env.to_header_value(),
+            proof_value.as_deref(),
+            None,
+        )
+        .await
+    }
+
+    /// Adds a service endpoint to an identity with a pre-built DID-envelope
+    /// header value. The envelope must be signed by the subject DID or its
+    /// controller (`method = "tenzro_addService"`, `params_hash` over
+    /// [`identity_service_params`]).
+    pub async fn add_service_presigned(
+        &self,
+        did: &str,
+        service_type: &str,
+        endpoint: &str,
+        envelope_header: &str,
+    ) -> SdkResult<serde_json::Value> {
         self.rpc
             .call(
-                "tenzro_addCredential",
-                serde_json::json!({"did": did, "type": credential_type, "issuer": issuer, "claims": claims}),
+                "tenzro_addService",
+                serde_json::json!({
+                    "did": did,
+                    "type": service_type,
+                    "endpoint": endpoint,
+                    "envelope": envelope_header,
+                }),
             )
             .await
     }
 
-    /// Adds a service endpoint to an identity
-    pub async fn add_service(&self, did: &str, service_type: &str, endpoint: &str) -> SdkResult<serde_json::Value> {
-        self.rpc
-            .call(
-                "tenzro_addService",
-                serde_json::json!({"did": did, "type": service_type, "endpoint": endpoint}),
-            )
+    /// Adds a service endpoint, signing the DID envelope locally. `signer_did`
+    /// is the DID whose key `signer` holds — the subject DID itself, or its
+    /// controller when the controller authorizes the write.
+    pub async fn add_service(
+        &self,
+        signer: &Arc<dyn crate::app::EnvelopeSigner>,
+        signer_did: &str,
+        did: &str,
+        service_type: &str,
+        endpoint: &str,
+    ) -> SdkResult<serde_json::Value> {
+        let params = identity_service_params(did, service_type, endpoint);
+        let env =
+            crate::app::build_envelope(signer, signer_did, "tenzro_addService", &params).await?;
+        self.add_service_presigned(did, service_type, endpoint, &env.to_header_value())
             .await
     }
 
@@ -407,6 +502,74 @@ impl IdentityClient {
             .call("tenzro_getAgentJwk", serde_json::json!([keyid]))
             .await
     }
+}
+
+// ---------------------------------------------------------------------------
+// Canonical params for identity-write envelopes
+// ---------------------------------------------------------------------------
+
+const IDENTITY_CREDENTIAL_DOMAIN: &[u8] = b"tenzro/identity/credential";
+const IDENTITY_SERVICE_DOMAIN: &[u8] = b"tenzro/identity/service";
+const IDENTITY_CLAIM_DOMAIN: &[u8] = b"tenzro/identity/claim";
+
+/// Canonical params for `tenzro_addCredential`, byte-identical to the node's
+/// builder. `claims_canonical` is the `serde_json` serialization of the claims
+/// object — `Value::Object` is sorted-key, so client and server derive
+/// identical bytes.
+pub fn identity_credential_params(
+    did: &str,
+    credential_type: &str,
+    issuer: &str,
+    claims_canonical: &[u8],
+) -> Vec<u8> {
+    let mut buf = IDENTITY_CREDENTIAL_DOMAIN.to_vec();
+    crate::app::push_bytes(&mut buf, did.as_bytes());
+    crate::app::push_bytes(&mut buf, credential_type.as_bytes());
+    crate::app::push_bytes(&mut buf, issuer.as_bytes());
+    crate::app::push_bytes(&mut buf, claims_canonical);
+    buf
+}
+
+/// Canonical params for `tenzro_addService`, byte-identical to the node's
+/// builder.
+pub fn identity_service_params(did: &str, service_type: &str, endpoint: &str) -> Vec<u8> {
+    let mut buf = IDENTITY_SERVICE_DOMAIN.to_vec();
+    crate::app::push_bytes(&mut buf, did.as_bytes());
+    crate::app::push_bytes(&mut buf, service_type.as_bytes());
+    crate::app::push_bytes(&mut buf, endpoint.as_bytes());
+    buf
+}
+
+/// Canonical params for `tenzro_addIdentityClaim`, byte-identical to the
+/// node's builder. `address_hex_lower` is the 0x-stripped lowercase hex form.
+pub fn identity_claim_params(
+    address_hex_lower: &str,
+    topic: u64,
+    issuer: &str,
+    data: &str,
+    valid_from: &str,
+    valid_to: &str,
+) -> Vec<u8> {
+    let mut buf = IDENTITY_CLAIM_DOMAIN.to_vec();
+    crate::app::push_bytes(&mut buf, address_hex_lower.as_bytes());
+    buf.extend_from_slice(&topic.to_be_bytes());
+    crate::app::push_bytes(&mut buf, issuer.as_bytes());
+    crate::app::push_bytes(&mut buf, data.as_bytes());
+    crate::app::push_bytes(&mut buf, valid_from.as_bytes());
+    crate::app::push_bytes(&mut buf, valid_to.as_bytes());
+    buf
+}
+
+/// Canonical bytes of the credential subject the issuer's durable proof
+/// signs — the sorted-key compact JSON of `{"claims": {...}, "id": "<did>"}`,
+/// matching `tenzro_identity::credential::CredentialSubject::canonical_bytes`.
+pub fn credential_subject_canonical_bytes(
+    did: &str,
+    claims: &serde_json::Value,
+) -> SdkResult<Vec<u8>> {
+    let subject = serde_json::json!({ "id": did, "claims": claims });
+    serde_json::to_vec(&subject)
+        .map_err(|e| crate::error::SdkError::InvalidParameter(e.to_string()))
 }
 
 /// Identity type

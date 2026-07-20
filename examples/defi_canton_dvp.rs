@@ -12,7 +12,29 @@
 //!
 //! Uses the Canton MCP tools (port 3005).
 
+use async_trait::async_trait;
+use std::sync::Arc;
+use tenzro_crypto::{Ed25519SignerImpl, KeyPair, KeyType, Signer as CryptoSigner};
+use tenzro_sdk::app::EnvelopeSigner;
+use tenzro_sdk::signer::SignerError;
 use tenzro_sdk::{TenzroClient, SettlementRequest, config::SdkConfig};
+
+/// Adapts a local `tenzro-crypto` Ed25519 key to the SDK's `EnvelopeSigner`
+/// trait, which signs the raw DID-envelope preimage.
+struct Ed25519EnvelopeSigner {
+    inner: Ed25519SignerImpl,
+}
+
+#[async_trait]
+impl EnvelopeSigner for Ed25519EnvelopeSigner {
+    async fn sign_preimage(&self, preimage: &[u8]) -> Result<Vec<u8>, SignerError> {
+        let sig = self
+            .inner
+            .sign(preimage)
+            .map_err(|e| SignerError::BackendUnavailable(e.to_string()))?;
+        Ok(sig.as_bytes().to_vec())
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -235,17 +257,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ─── 16. Add settlement credential to identity ──────────────────────────
     println!("16. Creating settlement attestation credential...");
 
+    let identity_key_hex = identity
+        .private_key
+        .as_deref()
+        .ok_or("register_human did not return a private key")?;
+    let identity_key_bytes = hex::decode(identity_key_hex.trim_start_matches("0x"))?;
+    let identity_kp = KeyPair::from_bytes(KeyType::Ed25519, &identity_key_bytes)?;
+    let identity_signer: Arc<dyn EnvelopeSigner> = Arc::new(Ed25519EnvelopeSigner {
+        inner: Ed25519SignerImpl::new(identity_kp)?,
+    });
+
     let cred = client.identity().add_credential(
+        &identity_signer,
         &identity.did,
         "DvPSettlementAttestation",
-        None,
-        Some(serde_json::json!({
+        &identity.did,
+        &serde_json::json!({
             "settlement_id": settlement.receipt_id,
             "asset": "US912828ZT58",
             "quantity": 100,
             "counterparty": "seller-bank-b",
             "chain": "canton",
-        })),
+        }),
+        true,
     ).await?;
     println!("   Credential: {}\n", cred);
 

@@ -240,8 +240,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let p256_sig = p256_signer.sign_prehash(&prehash);
     let ml_dsa_sig = pq_kp.sign(&op_hash);
 
-    // Pack into HybridWebAuthnSignature bincode (matches
-    // tenzro_vm::HybridWebAuthnSignature::encode).
+    // Pack into the bincode bundle format the validator expects: a
+    // `Vec<HybridWebAuthnSignature>` whose length equals the account's
+    // second-factor policy (single_credential → exactly one entry).
+    // Mirrors `tenzro_vm::HybridWebAuthnSignature::encode_bundle`.
     #[derive(serde::Serialize)]
     struct WebAuthnAssertionWire {
         authenticator_data: Vec<u8>,
@@ -253,8 +255,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     struct HybridSig {
         assertion: WebAuthnAssertionWire,
         ml_dsa_signature: Vec<u8>,
+        credential_id: Vec<u8>,
     }
-    let hybrid = HybridSig {
+    let bundle = vec![HybridSig {
         assertion: WebAuthnAssertionWire {
             authenticator_data: auth_data,
             client_data_json: client_data,
@@ -262,8 +265,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             user_handle: None,
         },
         ml_dsa_signature: ml_dsa_sig,
-    };
-    let signature_bytes = bincode::serialize(&hybrid)?;
+        credential_id: cred.clone(),
+    }];
+    let signature_bytes = bincode::serialize(&bundle)?;
     println!("  hybrid signature: {} bytes", signature_bytes.len());
 
     // ── 4. Submit ──

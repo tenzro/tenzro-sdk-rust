@@ -106,7 +106,7 @@ pub const MAX_DEVELOPER_MARGIN_BPS: u32 = 2000;
 
 /// Length-prefixed byte push: `u32` big-endian length, then the bytes. Matches
 /// the node's `push_bytes` used throughout `canonical_params`.
-fn push_bytes(buf: &mut Vec<u8>, bytes: &[u8]) {
+pub(crate) fn push_bytes(buf: &mut Vec<u8>, bytes: &[u8]) {
     buf.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
     buf.extend_from_slice(bytes);
 }
@@ -405,7 +405,7 @@ fn random_bytes<const N: usize>() -> SdkResult<[u8; N]> {
 ///
 /// The signature covers the raw preimage (not its SHA-256): the node's verifier
 /// does `verify(pk, canonical_preimage(env), sig)`.
-async fn build_envelope(
+pub(crate) async fn build_envelope(
     signer: &Arc<dyn EnvelopeSigner>,
     did: &str,
     method: &str,

@@ -97,6 +97,18 @@ impl BridgeFeeClient {
             )
             .await
     }
+
+    /// Read one or more asset prices from the node's price oracle
+    /// (`tenzro_getPrice`). Pass a single `symbol` or a `symbols` list.
+    /// Prices are USD with 8 decimal places (`price_usd_8dp` is the
+    /// integer value scaled by 1e8). Symbols with no live feed are
+    /// returned in `unavailable` rather than failing the whole call.
+    /// Requires `bridge.prices.enabled` on the node.
+    pub async fn get_price(&self, req: GetPriceRequest) -> SdkResult<GetPriceResponse> {
+        self.rpc
+            .call("tenzro_getPrice", serde_json::json!([req]))
+            .await
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,4 +203,49 @@ pub struct BridgeKeyAnalytics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeAnalyticsList {
     pub analytics: Vec<BridgeKeyAnalytics>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GetPriceRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<String>,
+}
+
+impl GetPriceRequest {
+    pub fn symbol(symbol: impl Into<String>) -> Self {
+        Self { symbol: Some(symbol.into()), symbols: Vec::new() }
+    }
+
+    pub fn symbols(symbols: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            symbol: None,
+            symbols: symbols.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetPriceResponse {
+    pub prices: Vec<AssetPrice>,
+    #[serde(default)]
+    pub unavailable: Vec<AssetPriceUnavailable>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetPrice {
+    pub symbol: String,
+    /// USD price as an integer scaled by 1e8, encoded as a decimal string.
+    pub price_usd_8dp: String,
+    pub decimals: u32,
+    pub updated_at: u64,
+    #[serde(default)]
+    pub feed_address: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetPriceUnavailable {
+    pub symbol: String,
+    pub reason: String,
 }

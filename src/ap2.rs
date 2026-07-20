@@ -368,6 +368,71 @@ impl Ap2Client {
             .call("tenzro_ap2ProtocolInfo", serde_json::json!([]))
             .await
     }
+
+    /// Lists the persisted AP2 mandates authorized by a controller DID
+    /// (`tenzro_listMandates`). Each record captures the validated
+    /// intent/cart pair — amounts, asset, chain, merchant, expiry, and
+    /// the stored checkout/payment VDCs — so a controller can audit what
+    /// its agents were authorized to spend.
+    pub async fn list_mandates(
+        &self,
+        controller_did: impl Into<String>,
+    ) -> SdkResult<Ap2MandateList> {
+        self.rpc
+            .call(
+                "tenzro_listMandates",
+                serde_json::json!([{ "controller_did": controller_did.into() }]),
+            )
+            .await
+    }
+}
+
+/// The set of persisted AP2 mandates for a controller DID.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ap2MandateList {
+    #[serde(default)]
+    pub controller_did: String,
+    #[serde(default)]
+    pub count: usize,
+    #[serde(default)]
+    pub mandates: Vec<Ap2MandateRecord>,
+}
+
+/// A persisted AP2 mandate record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ap2MandateRecord {
+    #[serde(default)]
+    pub mandate_id: String,
+    #[serde(default)]
+    pub payment_mandate_id: String,
+    #[serde(default)]
+    pub controller_did: String,
+    #[serde(default)]
+    pub agent_did: String,
+    #[serde(default)]
+    pub merchant_did: String,
+    #[serde(default)]
+    pub description: String,
+    /// Per-mandate spend ceiling as a decimal string.
+    #[serde(default)]
+    pub max_amount: String,
+    /// Cart total as a decimal string.
+    #[serde(default)]
+    pub total_amount: String,
+    #[serde(default)]
+    pub asset: String,
+    #[serde(default)]
+    pub chain: String,
+    #[serde(default)]
+    pub expires_at: u64,
+    #[serde(default)]
+    pub delegation_enforced: bool,
+    #[serde(default)]
+    pub validated_at_ms: u64,
+    #[serde(default)]
+    pub checkout_vdc: serde_json::Value,
+    #[serde(default)]
+    pub payment_vdc: serde_json::Value,
 }
 
 /// An AP2 payment session between an agent and provider
