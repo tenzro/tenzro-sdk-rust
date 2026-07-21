@@ -178,8 +178,8 @@ pub use rpc::RpcClient;
 
 // Re-export core types
 pub use types::{
-    Address, AgentIdentity, AgentTemplate, MmprojSpec, ModelInfo, ServingProfile, TaskInfo,
-    TaskQuote,
+    Address, AgentIdentity, AgentTemplate, CanonicalModelHash, MmprojSpec, ModelFileRecord,
+    ModelInfo, PeerHintRecord, ServingProfile, TaskInfo, TaskQuote,
 };
 
 // Re-export SVM Cross-VM constants and instruction builders
@@ -253,8 +253,8 @@ pub use governance::{
 };
 pub use identity::{IdentityClient, IdentityInfo, IdentityType, UsernameResolution};
 pub use inference::{
-    InferenceClient, IntentParams, OrchestrateRequest, OrchestrationOutcome, OrchestrationStep,
-    RouteDecision,
+    InferenceClient, IntentParams, ModelHashList, OrchestrateRequest, OrchestrationOutcome,
+    OrchestrationStep, RouteDecision,
 };
 pub use hosting::{
     DeployFunctionBuilder, DeployMachineBuilder, HostingClient, PublishSiteBuilder, SiteRoute,
@@ -276,8 +276,9 @@ pub use payment::{
 };
 pub use seed_agent::SeedAgentClient;
 pub use provider::{
-    ChatMessage, ChatOptions, ChatResponse, DownloadProgress, HardwareProfile, ModelEndpoint,
-    ModelLoad, ParticipateResponse, ProviderClient, ProviderStats, ServeOptions, Visibility,
+    ChatMessage, ChatOptions, ChatResponse, DownloadProgress, GpuDevice, GpuVendor,
+    HardwareProfile, ModelEndpoint, ModelLoad, ParticipateResponse, ProviderClient, ProviderStats,
+    ServeOptions, Visibility,
 };
 pub use settlement::{SettlementClient, SettlementRequest, SettleResponse};
 pub use signer::{

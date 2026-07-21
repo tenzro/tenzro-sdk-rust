@@ -4,7 +4,7 @@
 
 use crate::error::SdkResult;
 use crate::rpc::RpcClient;
-use crate::types::ModelInfo;
+use crate::types::{CanonicalModelHash, ModelFileRecord, ModelInfo};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -41,6 +41,45 @@ impl InferenceClient {
     pub async fn list_models(&self) -> SdkResult<Vec<ModelInfo>> {
         self.rpc
             .call("tenzro_listModels", serde_json::json!([]))
+            .await
+    }
+
+    /// Reads the canonical content-hash record for a model from the
+    /// transparency log. This is the trust root a fetcher verifies downloaded
+    /// weights against before load. Open — no auth. The node returns JSON-RPC
+    /// `-32004` when no hash is recorded — surfaces as `SdkError::RpcError`.
+    pub async fn get_model_hash(&self, model_id: &str) -> SdkResult<CanonicalModelHash> {
+        self.rpc
+            .call(
+                "tenzro_getModelHash",
+                serde_json::json!([{ "model_id": model_id }]),
+            )
+            .await
+    }
+
+    /// Lists every recorded canonical model hash. Open — no auth.
+    pub async fn list_model_hashes(&self) -> SdkResult<ModelHashList> {
+        self.rpc
+            .call("tenzro_listModelHashes", serde_json::json!([]))
+            .await
+    }
+
+    /// Anchors a canonical model hash in the transparency log. Permissionless:
+    /// first recorder wins. Re-asserting an identical hash is idempotent; a
+    /// differing hash for an already-recorded model is rejected (JSON-RPC
+    /// `-32005`) so tampering is visible. `files` carries one record per weight
+    /// file (single GGUF, or one per ONNX bundle member), each with the file's
+    /// SHA-256 + BLAKE3 (64-hex) + size.
+    pub async fn record_model_hash(
+        &self,
+        model_id: &str,
+        files: &[ModelFileRecord],
+    ) -> SdkResult<CanonicalModelHash> {
+        self.rpc
+            .call(
+                "tenzro_recordModelHash",
+                serde_json::json!([{ "model_id": model_id, "files": files }]),
+            )
             .await
     }
 
@@ -390,6 +429,18 @@ pub struct OrchestrationOutcome {
     /// Number of re-plan iterations consumed (1 = single-shot).
     #[serde(default)]
     pub iterations: u32,
+}
+
+/// The result of `list_model_hashes`: a count plus the full set of recorded
+/// canonical model hashes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelHashList {
+    /// Number of recorded hashes.
+    #[serde(default)]
+    pub count: usize,
+    /// One canonical record per model that has a recorded hash.
+    #[serde(default)]
+    pub model_hashes: Vec<CanonicalModelHash>,
 }
 
 /// Inference result

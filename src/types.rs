@@ -147,6 +147,79 @@ pub struct ModelInfo {
     /// didn't include it (e.g. a plain `tenzro_listModels` row).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub serving: Option<ServingProfile>,
+    /// BLAKE3 content hash of the model weights (32 bytes). Set once weights
+    /// are content-addressed; a fetcher verifies downloaded bytes against this
+    /// before load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blake3_hash: Option<[u8; 32]>,
+    /// Content-addressed locator for the weights, e.g.
+    /// `tenzro://model/<id>@<blake3-hex>` or `tenzro://blob/<blake3-hex>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenzro_uri: Option<String>,
+    /// Known peer locators for the weights, tried before falling back to the
+    /// origin (e.g. HuggingFace Hub).
+    #[serde(default)]
+    pub peer_hints: Vec<PeerHintRecord>,
+}
+
+/// A peer locator for content-addressed model weights.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerHintRecord {
+    /// Content-addressed locator (`tenzro://blob/<hash>` or
+    /// `tenzro://model/<id>@<hash>`).
+    #[serde(default)]
+    pub tenzro_uri: String,
+    /// Optional SHA-256 of the referenced bytes (64-hex), used as a
+    /// belt-and-braces check on top of the transport's BLAKE3 verification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256_hex: Option<String>,
+}
+
+/// One weight-file record in a canonical model-hash manifest. Each file
+/// carries both its SHA-256 and BLAKE3 (64-hex each) plus its size in bytes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelFileRecord {
+    /// Weight filename (single GGUF, or one member of an ONNX bundle).
+    #[serde(default)]
+    pub filename: String,
+    /// SHA-256 of the file contents (64-hex).
+    #[serde(default)]
+    pub sha256: String,
+    /// BLAKE3 of the file contents (64-hex).
+    #[serde(default)]
+    pub blake3: String,
+    /// File size in bytes.
+    #[serde(default)]
+    pub size: u64,
+}
+
+/// The canonical content-hash record for a model in the transparency log.
+/// This is the trust root a fetcher verifies downloaded weights against
+/// before load.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanonicalModelHash {
+    /// Model identifier.
+    #[serde(default)]
+    pub model_id: String,
+    /// BLAKE3 over the canonical weight bytes (64-hex).
+    #[serde(default)]
+    pub blake3: String,
+    /// SHA-256 over the canonical weight bytes (64-hex).
+    #[serde(default)]
+    pub sha256: String,
+    /// Hash binding the per-file manifest (64-hex).
+    #[serde(default)]
+    pub manifest_hash: String,
+    /// DID of the recorder that first anchored this hash.
+    #[serde(default)]
+    pub recorder_did: String,
+    /// Epoch at which the hash was recorded.
+    #[serde(default)]
+    pub recorded_at_epoch: u64,
+    /// Whether the record was set by a governance override rather than the
+    /// permissionless first-recorder path.
+    #[serde(default)]
+    pub governance_overridden: bool,
 }
 
 /// Multimodal projector descriptor for a vision-capable model.

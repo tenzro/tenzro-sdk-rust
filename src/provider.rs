@@ -282,8 +282,11 @@ impl ProviderClient {
     /// # let client = TenzroClient::connect(config).await?;
     /// let provider = client.provider();
     /// let profile = provider.get_hardware_profile().await?;
-    /// println!("CPU: {}", profile.cpu);
-    /// println!("Memory: {} GB", profile.memory_gb);
+    /// println!("CPU: {}", profile.cpu_model);
+    /// println!("Memory: {} GB", profile.total_ram_gb);
+    /// for gpu in &profile.gpus {
+    ///     println!("{:?} {} ({} GiB)", gpu.vendor, gpu.name, gpu.vram_gb);
+    /// }
     /// # Ok(())
     /// # }
     /// ```
@@ -819,17 +822,64 @@ pub struct DownloadProgress {
     pub error: Option<String>,
 }
 
-/// Hardware profile of a node
+/// Accelerator vendor as reported by the node's hardware probe. Drives the
+/// compute-capability interpretation and the FP8/FP4 derivation rules.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GpuVendor {
+    /// NVIDIA — compute capability is the SM version string ("8.9", "9.0").
+    Nvidia,
+    /// AMD — compute capability is the gfx target ("gfx942", "gfx1100").
+    Amd,
+    /// Apple Silicon — unified-memory Metal GPU; no discrete VRAM.
+    Apple,
+    /// Any other accelerator (no precision derivation applied).
+    Other,
+}
+
+/// A single accelerator discovered by the node's hardware probe. A node may
+/// expose more than one, so [`HardwareProfile::gpus`] is a list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuDevice {
+    /// Accelerator vendor.
+    pub vendor: GpuVendor,
+    /// Device marketing name (e.g. "NVIDIA H100 80GB HBM3", "Apple M3 Max").
+    pub name: String,
+    /// Device memory in GiB (unified-memory budget on Apple Silicon).
+    pub vram_gb: u32,
+    /// Vendor-native compute-capability string: SM version for NVIDIA, gfx
+    /// target for AMD, "metal" for Apple. Empty when the probe could not read it.
+    pub compute_capability: String,
+    /// Hardware FP8 matrix/tensor units present.
+    pub fp8: bool,
+    /// Hardware FP4 matrix/tensor units present.
+    pub fp4: bool,
+}
+
+/// Hardware profile of a node, as returned by `tenzro_getHardwareProfile`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HardwareProfile {
-    /// CPU model/type
-    pub cpu: String,
-    /// Memory in GB
-    pub memory_gb: u64,
-    /// GPU model (if available)
-    pub gpu: Option<String>,
-    /// List of supported TEE types (tdx, sev-snp, nitro, nvidia-gpu)
-    pub tee_support: Vec<String>,
+    /// CPU model string.
+    pub cpu_model: String,
+    /// Physical core count.
+    pub cpu_cores: usize,
+    /// Logical thread count.
+    pub cpu_threads: usize,
+    /// Total system RAM in GB.
+    pub total_ram_gb: f64,
+    /// Every accelerator the node detected. Empty on a CPU-only node.
+    pub gpus: Vec<GpuDevice>,
+    /// Free storage in GB under the node's data dir.
+    pub storage_available_gb: f64,
+    /// Whether a TEE is available on this host.
+    pub tee_available: bool,
+    /// TEE vendor string when `tee_available` (e.g. "Intel TDX"), else `None`.
+    pub tee_vendor: Option<String>,
+    /// Operating system.
+    pub os: String,
+    /// CPU architecture.
+    pub arch: String,
+    /// Stable per-device fingerprint.
+    pub device_fingerprint: String,
 }
 
 /// Load information for a model being served
