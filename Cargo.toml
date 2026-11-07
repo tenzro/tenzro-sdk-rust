@@ -10,7 +10,7 @@ edition = "2024"
 rust-version = "1.85"
 description = "Tenzro Network SDK: a typed client for every RPC the node serves, hardware-signed transactions, agents, inference, payments and settlement"
 license = "Apache-2.0"
-repository = "https://github.com/tenzro/tenzro-sdk-rust"
+repository = "https://github.com/tenzro/tenzro-network"
 homepage = "https://tenzro.com/docs/sdk"
 documentation = "https://docs.rs/tenzro-sdk"
 readme = "README.md"
@@ -87,10 +87,6 @@ serde = { version = "1", features = ["derive"] }
 [[example]]
 name = "basic_usage"
 path = "examples/basic_usage.rs"
-
-[[example]]
-name = "did_resolve"
-path = "examples/did_resolve.rs"
 
 [[example]]
 name = "wallet_operations"
