@@ -301,6 +301,7 @@ Every public type and method is documented on [docs.rs/tenzro-sdk](https://docs.
 
 ```bash
 cargo run --example local_node          # chain id, a balance and a transfer dry run on one node
+cargo run --example did_resolve         # resolve a did:tenzro DID (identity record + DID Document)
 cargo run --example basic_usage
 cargo run --example wallet_operations
 cargo run --example ai_inference
