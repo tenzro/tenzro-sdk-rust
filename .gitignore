@@ -1,0 +1,12 @@
+# Build output
+/target/
+**/*.rs.bk
+*.pdb
+*.profraw
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
